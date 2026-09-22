@@ -1,5 +1,5 @@
 from typing import Iterator
-from xmachina import Message, Delta
+from agentzero import Message, Delta
 from .base import LLM
 from time import sleep
 

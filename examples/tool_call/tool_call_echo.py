@@ -1,8 +1,8 @@
 import json
 
-from xmachina import Message, build_context, ToolCall
-from xmachina.mock import ToolCallLLM, tool_schemas
-from xmachina.environment import Environment, Tool
+from agentzero import Message, build_context, ToolCall
+from agentzero.mock import ToolCallLLM, tool_schemas
+from agentzero.environment import Environment, Tool
 
 
 def main():

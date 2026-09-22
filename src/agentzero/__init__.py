@@ -1,5 +1,5 @@
 from __future__ import annotations
-from xmachina.eventlog import (
+from agentzero.eventlog import (
     Delta, WriteHead, Sequence, EventNode, build_context, ToolCall,
     ControlEvent, ControlKind, CallEvent, Message
 )

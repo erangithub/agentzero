@@ -1,7 +1,7 @@
 import asyncio
-from xmachina import build_context
-from xmachina.llms import EchoLLM
-from xmachina.environment.environment import Environment
+from agentzero import build_context
+from agentzero.llms import EchoLLM
+from agentzero.environment.environment import Environment
 
 async def main():
     # 1. Setup Environment

@@ -2,7 +2,7 @@ import os
 from typing import Iterator, Callable
 from google import genai
 from google.genai import types
-from xmachina import Message, Delta, ToolCall
+from agentzero import Message, Delta, ToolCall
 from .base import LLM
 
 

@@ -1,6 +1,6 @@
 from typing import Iterator, AsyncIterator
 from openai import AsyncOpenAI, OpenAI
-from xmachina import Message, Delta
+from agentzero import Message, Delta
 from .base import LLM
 
 

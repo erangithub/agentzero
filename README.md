@@ -1,4 +1,4 @@
-# XMachina
+# AgentZero
 
 > *Deus ex machina* — the god from the machine. Ancient playwrights lowered a god onto the stage with a crane when they'd lost control of the plot. Aristotle called it a cheat. The crane was the problem, not the god.
 
@@ -10,7 +10,7 @@ Python is already a universal language. Any workflow you can express as a graph,
 
 The LLM is a non-deterministic function call. Treat it like one.
 
-The only thing Python *can't* give you natively is a disciplined boundary between your deterministic code and the non-deterministic outside world — user input, LLM completions, tool results. That boundary is what XMachina provides. Nothing more.
+The only thing Python *can't* give you natively is a disciplined boundary between your deterministic code and the non-deterministic outside world — user input, LLM completions, tool results. That boundary is what AgentZero provides. Nothing more.
 
 ---
 
@@ -23,9 +23,9 @@ Separate your code into two things:
 **The environment** — the source of all non-determinism. Every call to the outside world goes through `env`. Every result is written to an immutable log.
 
 ```python
-from xmachina import build_context
-from xmachina.llms import OpenAILLM
-from xmachina.environment import Environment
+from agentzero import build_context
+from agentzero.llms import OpenAILLM
+from agentzero.environment import Environment
 
 env = Environment(llm=OpenAILLM(), input_fn=input)
 
@@ -57,7 +57,7 @@ Every call to `env` appends to an immutable log. This one discipline unlocks thr
 
 This is [event sourcing](https://martinfowler.com/eaaDev/EventSourcing.html) — a well-understood pattern — applied to LLM conversations.
 
-| Event Sourcing | XMachina |
+| Event Sourcing | AgentZero |
 |---|---|
 | Event Store | Immutable node chain — O(1) branching |
 | Event | `Message` |
@@ -71,9 +71,9 @@ This is [event sourcing](https://martinfowler.com/eaaDev/EventSourcing.html) —
 The same code runs in three modes. No mocks. No test flags. No special cases.
 
 ```python
-from xmachina import Message, build_context
-from xmachina.llms import EchoLLM
-from xmachina.environment import Environment
+from agentzero import Message, build_context
+from agentzero.llms import EchoLLM
+from agentzero.environment import Environment
 
 # Record
 env = Environment(llm=EchoLLM(), input_fn=input)
@@ -149,7 +149,7 @@ async def run_parallel(env):
 ## Tools
 
 ```python
-from xmachina.environment import Environment, Tool
+from agentzero.environment import Environment, Tool
 
 tools = [Tool(name="get_weather", fn=get_weather, schema=weather_schema)]
 env = Environment(llm=OpenAILLM(), tools=tools, input_fn=input)
@@ -164,18 +164,18 @@ while True:
             env.call_tool(tc)
 ```
 
-Schema generation is handled by whatever you're already using — OpenAI SDK, Pydantic, FastMCP. XMachina doesn't provide `@tool`. That would conflict with what you already have.
+Schema generation is handled by whatever you're already using — OpenAI SDK, Pydantic, FastMCP. AgentZero doesn't provide `@tool`. That would conflict with what you already have.
 
 ---
 
 ## LLM providers
 
 ```python
-from xmachina.llms import OpenAILLM   # OpenAI
-from xmachina.llms import GroqLLM     # Groq (free tier)
-from xmachina.llms import OllamaLLM   # Ollama (local)
-from xmachina.llms import LMStudioLLM # LM Studio (local)
-from xmachina.llms import EchoLLM     # testing
+from agentzero.llms import OpenAILLM   # OpenAI
+from agentzero.llms import GroqLLM     # Groq (free tier)
+from agentzero.llms import OllamaLLM   # Ollama (local)
+from agentzero.llms import LMStudioLLM # LM Studio (local)
+from agentzero.llms import EchoLLM     # testing
 ```
 
 ---
@@ -199,4 +199,4 @@ pip install -e .
 
 ---
 
-*The playwright who reaches for the crane because they've lost control of the plot has a different relationship to their story than the one who never needed it. XMachina is for the second kind of engineer.*
+*The playwright who reaches for the crane because they've lost control of the plot has a different relationship to their story than the one who never needed it. AgentZero is for the second kind of engineer.*

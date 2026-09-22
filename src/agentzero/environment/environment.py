@@ -5,11 +5,11 @@ from types import MethodType
 import json
 import functools
 
-from xmachina.eventlog import (
+from agentzero.eventlog import (
     WriteHead, ReadHead, EventNode, ToolCall, ControlEvent, ControlKind, Message, Delta, Sequence,
     MessageEvent, CallEvent, TransientEvent, Event
 )
-from xmachina.llms.base import LLM
+from agentzero.llms.base import LLM
 
 
 T = TypeVar("T")

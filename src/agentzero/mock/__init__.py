@@ -1,5 +1,5 @@
 """
-xmachina.mock — development and testing utilities
+agentzero.mock — development and testing utilities
 
 These are not production components. They are useful for
 unit tests and examples without any external dependencies.
@@ -7,8 +7,8 @@ unit tests and examples without any external dependencies.
 import json
 import time
 from typing import Iterator
-from xmachina import Message, Delta, ToolCall
-from xmachina.llms import LLM
+from agentzero import Message, Delta, ToolCall
+from agentzero.llms import LLM
 
 
 class ToolCallLLM(LLM):

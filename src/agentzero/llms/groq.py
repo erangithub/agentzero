@@ -1,7 +1,7 @@
 import os
 from typing import Iterator
 from openai import OpenAI
-from xmachina import Message, Delta
+from agentzero import Message, Delta
 from .base import LLM
 
 

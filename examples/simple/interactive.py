@@ -1,6 +1,6 @@
-from xmachina import build_context
-from xmachina.llms import LMStudioLLM
-from xmachina.environment import Environment
+from agentzero import build_context
+from agentzero.llms import LMStudioLLM
+from agentzero.environment import Environment
 
 def main():
     def get_input():

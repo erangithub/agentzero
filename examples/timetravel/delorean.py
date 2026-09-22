@@ -1,7 +1,7 @@
-from xmachina import build_context
-from xmachina.llms import EchoLLM # LMStudioLLM  # or OllamaLLM
-from xmachina.environment import Environment, transient
-from xmachina.eventlog import MessageEvent
+from agentzero import build_context
+from agentzero.llms import EchoLLM # LMStudioLLM  # or OllamaLLM
+from agentzero.environment import Environment, transient
+from agentzero.eventlog import MessageEvent
 
 
 def prev_user_depth(env) -> int | None:

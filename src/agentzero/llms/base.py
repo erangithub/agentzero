@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Iterator, AsyncIterator
-from xmachina import Message, Delta
+from agentzero import Message, Delta
 
 
 class LLM(ABC):

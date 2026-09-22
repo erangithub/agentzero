@@ -1,6 +1,6 @@
-from xmachina import Message, build_context
-from xmachina.llms import LMStudioLLM  # or OllamaLLM
-from xmachina.environment import Environment
+from agentzero import Message, build_context
+from agentzero.llms import LMStudioLLM  # or OllamaLLM
+from agentzero.environment import Environment
 
 def main():
     llm = LMStudioLLM()

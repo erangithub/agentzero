@@ -1,5 +1,5 @@
-from xmachina.llms import EchoLLM
-from xmachina.environment import Environment
+from agentzero.llms import EchoLLM
+from agentzero.environment import Environment
 
 
 _price_counter = 0

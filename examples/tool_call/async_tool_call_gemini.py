@@ -1,8 +1,8 @@
 import asyncio
 import os
-from xmachina import build_context
-from xmachina.llms import GeminiLLM
-from xmachina.environment import Environment, Tool
+from agentzero import build_context
+from agentzero.llms import GeminiLLM
+from agentzero.environment import Environment, Tool
 
 
 def get_weather(location: str) -> dict:
@@ -28,7 +28,7 @@ async def main():
 
     context = build_context(env.history())
     # Gemini handles tool execution internally when tool_fns is passed.
-    # XMachina logs the result — no manual call_tool loop needed.
+    # AgentZero logs the result — no manual call_tool loop needed.
     response = await env.llm_acomplete(context, tool_fns=[get_weather])
 
     print(f"Response: {response}")

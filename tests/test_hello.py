@@ -1,6 +1,6 @@
-from xmachina import build_context
-from xmachina.llms import EchoLLM
-from xmachina.environment import Environment
+from agentzero import build_context
+from agentzero.llms import EchoLLM
+from agentzero.environment import Environment
 
 def test_hello_world_replay():
     llm = EchoLLM()
