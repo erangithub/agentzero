@@ -202,8 +202,14 @@ pip install -e .
 
 ## Examples
 
-- `examples/hello.py` — basic LLM call
-- `examples/summarize.py` — forking for summarization
-- `examples/tools.py` — tool use loop
-- `examples/replay.py` — all three replay modes
-- `examples/nondet.py` — wrapping arbitrary non-deterministic functions
+- `examples/simple/hello.py` — basic LLM call
+- `examples/simple/replay.py` — all three replay modes
+- `examples/simple/interactive.py` — interactive chat loop
+- `examples/simple/streaming.py` — streaming completions
+- `examples/nondet/example.py` — wrapping arbitrary non-deterministic functions
+- `examples/tool_call/tool_call_echo.py` — tool use loop (no external dependencies)
+- `examples/tool_call/tool_call_gemini.py` — tool use with Gemini
+- `examples/tool_call/async_tool_call_gemini.py` — async tool use with Gemini
+- `examples/swarm/swarm.py` — multi-branch tree of agents
+- `examples/swarm/branch_summarize.py` — summarization in a forked branch
+- `examples/timetravel/delorean.py` — debugging with replay / time travel
