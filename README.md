@@ -1,18 +1,58 @@
 # agentzero
-
+ 
 **The non-agentic, agentic framework.**
-
-Frameworks like LangGraph, AutoGen, and CrewAI give you an `Agent` abstraction, a graph of nodes, and an orchestration layer to wire them together. agentzero gives you none of that — and still does what those frameworks do.
-
-The LLM is a non-deterministic function call. Treat it like one.
-
+ 
+## Message history is not state
+ 
+Frameworks like LangGraph make you conflate the two. A conversation branches — one path summarizes, another retries, a third runs a sub-task — and now you need a schema for how to merge them back: `Annotated[list, operator.add]`, custom reducers, `InvalidUpdateError` when two branches write the same key, sub-agents spun up just to keep one branch's context from bleeding into another's. The graph, the reducers, and the sub-agents all exist to solve a problem that conflating history with state created in the first place.
+ 
+In agentzero they're separate by construction. Message history lives on `Environment`: immutable, forkable, replayable. State is just computation: local variables, function calls, return values, whatever data structure or control structure the moment calls for. Forking a conversation to run three parallel analyses doesn't require declaring how their outputs merge: you write `results = await asyncio.gather(...)` and combine them however Python already lets you combine things.
+ 
+**LangGraph** — merging three parallel branches requires declaring a reducer up front, in the schema, before you've written any logic:
+ 
+```python
+from typing import Annotated, TypedDict
+import operator
+ 
+class State(TypedDict):
+    perspectives: Annotated[list[str], operator.add]  # merge strategy, declared ahead of time
+ 
+graph.add_edge("start", "econ_node")
+graph.add_edge("start", "social_node")
+graph.add_edge("start", "infra_node")
+# all three feed "synthesize", which reads state["perspectives"]
+# want a dict keyed by label instead of a flat list? write a custom reducer.
+```
+ 
+**agentzero** — merging is just the next line of Python:
+ 
+```python
+fork_econ, fork_social, fork_infra = env.fork(), env.fork(), env.fork()
+ 
+results = await asyncio.gather(
+    get_perspective(fork_econ, "Focus on economic shifts and tax revenue."),
+    get_perspective(fork_social, "Focus on social isolation and community building."),
+    get_perspective(fork_infra, "Focus on public transit and office space conversion."),
+)
+ 
+perspectives = {
+    "Economics": results[0].content,
+    "Social": results[1].content,
+    "Infrastructure": results[2].content,
+}
+```
+ 
+No schema. No reducer. No `InvalidUpdateError` to debug. Each fork sees its own slice of history; the dict on the last line is the entire "merge strategy."
+ 
+---
+ 
 ```python
 from agentzero import build_context
 from agentzero.llms import OpenAILLM
 from agentzero.environment import Environment
-
+ 
 env = Environment(llm=OpenAILLM(), input_fn=input)
-
+ 
 while True:
     request  = env.input()
     while True:
@@ -23,7 +63,7 @@ while True:
         for tc in response.tool_calls:
             env.call_tool(tc)
 ```
-
+ 
 That's the entire framework. Memory, checkpointing, branching, multi-agent, streaming — all of it is a variation on this loop, written in plain Python.
 
 ---
