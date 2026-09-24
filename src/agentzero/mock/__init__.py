@@ -4,10 +4,12 @@ agentzero.mock — development and testing utilities
 These are not production components. They are useful for
 unit tests and examples without any external dependencies.
 """
+
 import json
 import time
-from typing import Iterator
-from agentzero import Message, Delta, ToolCall
+from collections.abc import Iterator
+
+from agentzero import Delta, Message, ToolCall
 from agentzero.llms import LLM
 
 
@@ -21,10 +23,10 @@ class ToolCallLLM(LLM):
     """
 
     def __init__(self, tool_name: str, arguments: dict, final_answer: str):
-        self.tool_name    = tool_name
-        self.arguments    = arguments
+        self.tool_name = tool_name
+        self.arguments = arguments
         self.final_answer = final_answer
-        self._call_id     = "call_001"
+        self._call_id = "call_001"
 
     def complete(self, messages: list[Message], **kwargs) -> Message:
         if any(m.role == "tool" for m in messages):

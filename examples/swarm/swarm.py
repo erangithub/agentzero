@@ -1,12 +1,14 @@
 import asyncio
+
 from agentzero import build_context
-from agentzero.llms import EchoLLM
 from agentzero.environment.environment import Environment
+from agentzero.llms import EchoLLM
+
 
 async def main():
     # 1. Setup Environment
     env = Environment(llm=EchoLLM(), continue_live=True)
-    
+
     # 2. Add the Initial "Context" (The Trunk)
     env.add_message("user", "Analyze the impact of remote work on urban planning.")
 
@@ -26,19 +28,19 @@ async def main():
     results = await asyncio.gather(
         get_perspective(fork_econ, "Focus on economic shifts and tax revenue."),
         get_perspective(fork_social, "Focus on social isolation and community building."),
-        get_perspective(fork_infra, "Focus on public transit and office space conversion.")
+        get_perspective(fork_infra, "Focus on public transit and office space conversion."),
     )
 
     # 4. Organize Results (The Dictionary Pattern)
     perspectives = {
         "Economics": results[0].content,
-        "Social":    results[1].content,
-        "Infrastructure": results[2].content
+        "Social": results[1].content,
+        "Infrastructure": results[2].content,
     }
 
     # 5. The "Reduce" Phase: Join them back in the Trunk
     print("\n--- Joining Results for Synthesis ---")
-    
+
     # Build a prompt that references the specific branch outputs
     join_content = "Synthesize these three perspectives into a 3-point strategy:\n\n"
     for label, text in perspectives.items():
@@ -55,6 +57,7 @@ async def main():
     # This shows the one-to-many relationship clearly
     print("\n=== Event Log Structure ===")
     env.print_tree()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

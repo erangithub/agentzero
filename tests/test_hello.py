@@ -1,6 +1,7 @@
 from agentzero import build_context
-from agentzero.llms import EchoLLM
 from agentzero.environment import Environment
+from agentzero.llms import EchoLLM
+
 
 def test_hello_world_replay():
     llm = EchoLLM()
@@ -13,7 +14,7 @@ def test_hello_world_replay():
 
     env.input()  # replays user message
     response = env.llm_complete(build_context(env.history()))
-    
+
     assert response.role == "assistant"
     assert response.content == "echo: hello"
     print("test_hello_world_full_replay passed")
@@ -26,7 +27,7 @@ def test_hello_world_replay_then_live():
     env.register_input_fn(input)
     env.add_message("user", "hello")
     env.rewind()
-   
+
     env.input()  # replays user message
     response = env.llm_complete(build_context(env.history()))
 
@@ -40,7 +41,7 @@ def test_hello_world_live():
     env = Environment(continue_live=True)
     env.register_llm_fn(llm.complete)
     env.register_input_fn(lambda: "hello")
-    
+
     env.input()  # reads user message
     response = env.llm_complete(build_context(env.history()))
 

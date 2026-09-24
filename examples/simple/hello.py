@@ -1,6 +1,7 @@
 from agentzero import build_context
-from agentzero.llms import EchoLLM
 from agentzero.environment import Environment
+from agentzero.llms import EchoLLM
+
 
 def main():
     llm = EchoLLM()
@@ -10,6 +11,7 @@ def main():
     env.add_user_message("hello")
     response = env.llm_complete(build_context(env.history()))
     print(response)
+
 
 if __name__ == "__main__":
     main()

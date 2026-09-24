@@ -1,12 +1,20 @@
 import os
-from typing import Iterator
+from collections.abc import Iterator
+
 from openai import OpenAI
-from agentzero import Message, Delta
+
+from agentzero import Delta, Message
+
 from .base import LLM
 
 
 class GroqLLM(LLM):
-    def __init__(self, model: str = "llama-3.3-70b-versatile", api_key: str | None = None, **kwargs):
+    def __init__(
+        self,
+        model: str = "llama-3.3-70b-versatile",
+        api_key: str | None = None,
+        **kwargs,
+    ):
         self.model = model
         self.client = OpenAI(
             api_key=api_key or os.environ["GROQ_API_KEY"],
@@ -17,6 +25,7 @@ class GroqLLM(LLM):
     def complete(self, messages: list[Message], **kwargs) -> Message:
         tools = kwargs.get("tools")
         from .openai import _to_dict
+
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[_to_dict(m) for m in messages],
@@ -28,6 +37,7 @@ class GroqLLM(LLM):
     def stream(self, messages: list[Message], **kwargs) -> Iterator[Delta]:
         tools = kwargs.get("tools")
         from .openai import _to_dict
+
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[_to_dict(m) for m in messages],

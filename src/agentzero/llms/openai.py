@@ -1,6 +1,9 @@
-from typing import Iterator, AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+
 from openai import AsyncOpenAI, OpenAI
-from agentzero import Message, Delta, ToolCall
+
+from agentzero import Delta, Message, ToolCall
+
 from .base import LLM
 
 

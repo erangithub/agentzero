@@ -20,14 +20,14 @@
 - [ ] Verify `examples/` with actual assertions (currently none)
 
 ## Quality / CI
-- [ ] GitHub Actions workflow (pytest on 3.10+)
-- [ ] ruff + mypy config in `pyproject.toml`
-- [ ] `py.typed` marker for a typed framework
+- [x] GitHub Actions workflow (pytest on 3.10+, ruff check/format, mypy)
+- [x] ruff + mypy config in `pyproject.toml`
+- [x] `py.typed` marker for a typed framework
 
 ## Packaging
-- [ ] `requires-python`, license, project URLs in `pyproject.toml`
-- [ ] dev dependency group (`pytest`, `ruff`, `mypy`)
-- [ ] `[tool.pytest.ini_options]` config
+- [x] `requires-python`, license, project URLs in `pyproject.toml`
+- [x] dev dependency group (`pytest`, `ruff`, `mypy`)
+- [x] `[tool.pytest.ini_options]` config
 - [ ] Changelog / version notes
 
 ## Docs

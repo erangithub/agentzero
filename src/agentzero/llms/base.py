@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, AsyncIterator
-from agentzero import Message, Delta
+from collections.abc import AsyncIterator, Iterator
+
+from agentzero import Delta, Message
 
 
 class LLM(ABC):

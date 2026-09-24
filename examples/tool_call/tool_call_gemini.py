@@ -1,7 +1,8 @@
 import os
+
 from agentzero import build_context
-from agentzero.llms import GeminiLLM
 from agentzero.environment import Environment, Tool
+from agentzero.llms import GeminiLLM
 from agentzero.mock import tool_schemas
 
 
@@ -16,13 +17,13 @@ def main():
         api_key=os.environ.get("GEMINI_API_KEY"),
     )
 
-    tools = [
-        Tool(name="get_weather", fn=get_weather, schema=tool_schemas[0])
-    ]
+    tools = [Tool(name="get_weather", fn=get_weather, schema=tool_schemas[0])]
 
     env = Environment(llm=llm, continue_live=True)
     env.register_tool_fns(tools)
-    env.register_input_fn(lambda: "Use the get_weather tool to tell me what the weather is in london.")
+    env.register_input_fn(
+        lambda: "Use the get_weather tool to tell me what the weather is in london."
+    )
     env.input()
 
     context = build_context(env.history())

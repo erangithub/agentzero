@@ -1,8 +1,11 @@
 import os
-from typing import Iterator, Callable
+from collections.abc import Iterator
+
 from google import genai
 from google.genai import types
-from agentzero import Message, Delta, ToolCall
+
+from agentzero import Delta, Message, ToolCall
+
 from .base import LLM
 
 
@@ -61,7 +64,7 @@ class GeminiLLM(LLM):
         tools = kwargs.get("tools")
         tool_fns = kwargs.get("tool_fns")
         contents = [_convert_message(m) for m in messages]
-        
+
         config = {}
         if tool_fns:
             config["tools"] = tool_fns
@@ -93,7 +96,7 @@ class GeminiLLM(LLM):
             return Message(role="assistant", content="")
 
         first_part = content.parts[0]
-        
+
         if hasattr(first_part, "function_call") and first_part.function_call:
             fc = first_part.function_call
             tool_calls = (
@@ -104,7 +107,7 @@ class GeminiLLM(LLM):
                 ),
             )
             return Message(role="assistant", content=None, tool_calls=tool_calls)
-        
+
         text = "".join(p.text for p in content.parts if hasattr(p, "text") and p.text)
         return Message(role="assistant", content=text)
 
@@ -112,7 +115,7 @@ class GeminiLLM(LLM):
         tools = kwargs.get("tools")
         tool_fns = kwargs.get("tool_fns")
         contents = [_convert_message(m) for m in messages]
-        
+
         config = {"stream": True}
         if tool_fns:
             config["tools"] = tool_fns

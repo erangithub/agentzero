@@ -1,7 +1,10 @@
-from typing import Iterator
-from agentzero import Message, Delta
-from .base import LLM
+from collections.abc import Iterator
 from time import sleep
+
+from agentzero import Delta, Message
+
+from .base import LLM
+
 
 class EchoLLM(LLM):
     def complete(self, messages: list[Message], **kwargs) -> Message:
@@ -13,4 +16,3 @@ class EchoLLM(LLM):
         for word in f"echo: {last_user.content if last_user else ''}".split():
             sleep(0.1)
             yield Delta(content=word + " ")
-

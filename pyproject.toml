@@ -5,7 +5,60 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentzero"
 version = "0.1.0"
-dependencies = ["openai>=1.0"]
+description = "The non-agentic, agentic framework. Event sourcing for LLM conversations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Eran Talmor" }]
+keywords = ["llm", "agents", "event-sourcing", "replay", "ai"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = ["openai>=1.0", "google-genai>=1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agentzero = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+strict = false
+
+[[tool.mypy.overrides]]
+module = [
+    "agentzero.llms.gemini",
+    "agentzero.llms.groq",
+    "agentzero.llms.lmstudio",
+    "agentzero.llms.ollama",
+    "agentzero.llms.openai",
+]
+ignore_errors = true

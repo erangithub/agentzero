@@ -1,8 +1,9 @@
 import asyncio
 import os
+
 from agentzero import build_context
-from agentzero.llms import GeminiLLM
 from agentzero.environment import Environment, Tool
+from agentzero.llms import GeminiLLM
 
 
 def get_weather(location: str) -> dict:
@@ -17,7 +18,22 @@ async def main():
     )
 
     tools = [
-        Tool(name="get_weather", fn=get_weather, schema={"type": "function", "function": {"name": "get_weather", "description": "Get weather", "parameters": {"type": "object", "properties": {"location": {"type": "string"}}, "required": ["location"]}}})
+        Tool(
+            name="get_weather",
+            fn=get_weather,
+            schema={
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"location": {"type": "string"}},
+                        "required": ["location"],
+                    },
+                },
+            },
+        )
     ]
 
     env = Environment(continue_live=True)

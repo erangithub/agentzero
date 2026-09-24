@@ -1,6 +1,6 @@
 from agentzero import build_context
-from agentzero.llms import EchoLLM
 from agentzero.environment import Environment
+from agentzero.llms import EchoLLM
 
 
 def summarize(env) -> str:
@@ -9,6 +9,7 @@ def summarize(env) -> str:
     context = build_context(sub.history(), system="Summarize the conversation.")
     response = sub.llm_complete(context)
     return f"Summary: {response.content}"
+
 
 def flow(env):
     user_input = env.add_user_message("long conversation here...")
@@ -23,6 +24,7 @@ def flow(env):
 
     print("-" * 20)
 
+
 def main():
     llm = EchoLLM()
     env = Environment(continue_live=True)
@@ -31,7 +33,7 @@ def main():
 
     print("=== First run: replay + continue live ===")
     flow(env)
-    
+
     print("=== Second run: replay from saved store ===")
     env.rewind()
     flow(env)
@@ -39,4 +41,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

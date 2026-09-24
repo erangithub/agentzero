@@ -1,6 +1,7 @@
 from agentzero import build_context
-from agentzero.llms import EchoLLM
 from agentzero.environment import Environment
+from agentzero.llms import EchoLLM
+
 
 def stream_flow(env):
     env.input()
@@ -9,7 +10,7 @@ def stream_flow(env):
     for delta in env.llm_stream(build_context(env.history())):
         full_content += delta.content
         count_deltas += 1
-        print (delta.content, end="")
+        print(delta.content, end="")
 
     print()
     messages = list(env.history().iter_messages())
@@ -21,12 +22,13 @@ def stream_flow(env):
     assert full_content.strip() == expected_assistant
     assert count_deltas == 6
 
+
 def test_streaming():
     llm = EchoLLM()
     env = Environment(continue_live=True)
     env.register_llm_stream_fn(llm.stream, name="llm_stream")  # event name: llm.complete
     env.register_input_fn(lambda: "one two three four five")
-    
+
     stream_flow(env)
     env.rewind()
     stream_flow(env)

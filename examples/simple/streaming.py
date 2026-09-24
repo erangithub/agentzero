@@ -1,6 +1,6 @@
-from agentzero import Message, build_context
-from agentzero.llms import EchoLLM
+from agentzero import build_context
 from agentzero.environment import Environment
+from agentzero.llms import EchoLLM
 
 
 def main():
