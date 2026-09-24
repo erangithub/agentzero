@@ -12,6 +12,7 @@ from agentzero.eventlog import (
     WriteHead,
     build_context,
 )
+from agentzero.tools import tool
 
 __all__ = [
     "Delta",
@@ -24,4 +25,5 @@ __all__ = [
     "ControlKind",
     "CallEvent",
     "Message",
+    "tool",
 ]

@@ -31,6 +31,9 @@ class Tool:
     fn: Callable[..., str]
     schema: dict
 
+    def __call__(self, *args, **kwargs):
+        return self.fn(*args, **kwargs)
+
 
 def transient(value: Any):
     return TransientEvent(value=value)
@@ -309,16 +312,23 @@ class Environment:
 
         self._register_method(name, method)
 
-    def register_tool_fns(self, tools: list[Tool]):
-        for tool in tools:
+    def register_tool_fns(self, tools: list[Tool | Callable[..., Any]]):
+        for item in tools:
+            if isinstance(item, Tool):
+                tool = item
+            else:
+                from agentzero.schema import schema_from_fn
+
+                tool = Tool(name=item.__name__, fn=item, schema=schema_from_fn(item))
+
             fn_name = f"tool.{tool.name}"
 
-            def make_method(f, n):
+            def make_method(f):
                 return lambda obj, **kwargs: obj._message_event(
                     fn=lambda: Message(role="tool", content=f(**kwargs)),
                 )
 
-            self._register_method(fn_name, make_method(tool.fn, fn_name))
+            self._register_method(fn_name, make_method(tool.fn))
 
     def rewind(self, continue_live: bool | None = None):
         if continue_live is not None:

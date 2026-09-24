@@ -21,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries",
 ]
-dependencies = ["openai>=1.0", "google-genai>=1.0"]
+dependencies = ["openai>=1.0", "google-genai>=1.0", "pydantic>=2"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]

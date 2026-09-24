@@ -9,7 +9,8 @@
   - [ ] Persistence format must be language-agnostic (e.g. JSON/JSONL or a defined binary schema), since a future **C++ port** will need to read/write the same logs
 - [ ] **(future) C++ interop** — not a full parallel framework; language-agnostic log format + small native *consumer/continuation* libraries (C++, optionally TS) so other hosts can read-and-continue Python-written logs
 - [ ] **Token/cost accounting** — record usage metadata per LLM event; `examples/token_saving/` is currently empty
-- [ ] **`@tool` decorator** — thin, Pydantic-backed schema inference (`TypeAdapter.json_schema()`) returning `Tool`, with `schema=` override for bring-your-own-schema users (no LangChain dependency)
+- [x] **`@tool` decorator** — thin, Pydantic-backed schema inference (`create_model` → `model_json_schema()`) returning `Tool`, with `schema=`/`name=` overrides; decorated fns stay callable; verbatim `Tool` construction still supported for bring-your-own-schema users
+- [ ] **Language-agnostic log format** — lock the on-disk spec (JSON/JSONL) once persistence lands, so future TS/C++ consumers can read-and-continue
 
 ## Tests (prove the thesis)
 - [ ] Fork semantics: parent log untouched, fork replay from its write head
