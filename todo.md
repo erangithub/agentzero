@@ -13,12 +13,13 @@
 - [ ] **Language-agnostic log format** — lock the on-disk spec (JSON/JSONL) once persistence lands, so future TS/C++ consumers can read-and-continue
 
 ## Tests (prove the thesis)
-- [ ] Fork semantics: parent log untouched, fork replay from its write head
-- [ ] Tool-call replay vs. live execution through `env.call_tool`
-- [ ] `build_context` regions / injections
-- [ ] Replay determinism across the three modes
+- [x] Fork semantics: parent log untouched, fork replay from its write head (`tests/test_fork.py`)
+- [x] Tool-call replay vs. live execution through `env.call_tool` (`tests/test_tool.py`)
+- [x] `build_context` regions / injections (`tests/test_fork.py`)
+- [x] Replay determinism across the three modes (`tests/test_hello.py`, `tests/test_timetravel.py`)
+- [x] Swarm-style async parallel forks + reduce (`tests/test_swarm.py`)
+- [x] Time travel: 'b' rollback discards exchange, transient commands never logged (`tests/test_timetravel.py`)
 - [ ] Shared-store behavior across forks
-- [ ] Verify `examples/` with actual assertions (currently none)
 
 ## Quality / CI
 - [x] GitHub Actions workflow (pytest on 3.10+, ruff check/format, mypy)
