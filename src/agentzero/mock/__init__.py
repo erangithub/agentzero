@@ -49,26 +49,3 @@ class ToolCallLLM(LLM):
             for word in response.content.split():
                 time.sleep(0.05)
                 yield Delta(content=word + " ")
-
-
-def get_weather(location: str) -> str:
-    """Returns a fixed weather string. Stand-in for a real weather API."""
-    return f"25c and sunny in {location}"
-
-
-tool_schemas = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": get_weather.__doc__,
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City name"},
-                },
-                "required": ["location"],
-            },
-        },
-    }
-]

@@ -1,13 +1,11 @@
 from agentzero import ToolCall, build_context
-from agentzero.environment import Environment, Tool
-from agentzero.mock import ToolCallLLM, tool_schemas
+from agentzero.environment import Environment
+from agentzero.mock import ToolCallLLM
 
 
 def main():
     def get_weather_tool(location: str) -> str:
         return f"25c and sunny in {location}"
-
-    tools = [Tool(name="get_weather", fn=get_weather_tool, schema=tool_schemas[0])]
 
     llm = ToolCallLLM(
         tool_name="get_weather",
@@ -18,7 +16,7 @@ def main():
     env = Environment(continue_live=True)
     env.register_llm_fn(llm.complete)
     env.register_input_fn(input)
-    env.register_tool_fns(tools)
+    env.register_tool_fns([get_weather_tool])
     env.add_user_message("what's the weather in london?")
     msg = env.add_message(
         role="assistant",

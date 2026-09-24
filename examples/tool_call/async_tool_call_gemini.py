@@ -2,7 +2,7 @@ import asyncio
 import os
 
 from agentzero import build_context
-from agentzero.environment import Environment, Tool
+from agentzero.environment import Environment
 from agentzero.llms import GeminiLLM
 
 
@@ -17,28 +17,9 @@ async def main():
         api_key=os.environ.get("GEMINI_API_KEY"),
     )
 
-    tools = [
-        Tool(
-            name="get_weather",
-            fn=get_weather,
-            schema={
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "Get weather",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"location": {"type": "string"}},
-                        "required": ["location"],
-                    },
-                },
-            },
-        )
-    ]
-
     env = Environment(continue_live=True)
     env.register_llm_afn(llm.acomplete)
-    env.register_tool_fns(tools)
+    env.register_tool_fns([get_weather])
     env.register_input_fn(lambda: "What's the weather in London?")
     env.input()
 
