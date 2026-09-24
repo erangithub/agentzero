@@ -22,6 +22,7 @@ wheels/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.sessions/
 .venv/
 venv/
 ENV/

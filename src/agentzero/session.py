@@ -46,11 +46,7 @@ class Session:
         if _make_root:
             root = Environment(self, continue_live=continue_live)
             if llm is not None:
-                root.register_llm_fn(llm.complete)
-                if hasattr(llm, "acomplete"):
-                    root.register_llm_afn(llm.acomplete)
-                if hasattr(llm, "stream"):
-                    root.register_llm_stream_fn(llm.stream)
+                _register_llm(root, llm)
             if input_fn is not None:
                 root.register_input_fn(input_fn)
             self.root = root
@@ -113,7 +109,13 @@ class Session:
         return "\n".join(lines) + "\n"
 
     @classmethod
-    def from_json(cls, text: str, continue_live: bool = True) -> Session:
+    def from_json(
+        cls,
+        text: str,
+        continue_live: bool = True,
+        llm=None,
+        input_fn=None,
+    ) -> Session:
         header: dict | None = None
         node_records: list[dict] = []
         env_records: list[dict] = []
@@ -161,6 +163,12 @@ class Session:
         if roots:
             session.root = roots[0]
 
+        for env in envs:
+            if llm is not None:
+                _register_llm(env, llm)
+            if input_fn is not None:
+                env.register_input_fn(input_fn)
+
         chain_ids: dict[Environment, set[str]] = {
             env: {node.id for node in _chain(env)} for env in envs
         }
@@ -175,6 +183,14 @@ class Session:
             owner.forks.setdefault(fork_point.id, []).append(env)
 
         return session
+
+
+def _register_llm(env, llm) -> None:
+    env.register_llm_fn(llm.complete)
+    if hasattr(llm, "acomplete"):
+        env.register_llm_afn(llm.acomplete)
+    if hasattr(llm, "stream"):
+        env.register_llm_stream_fn(llm.stream)
 
 
 def _chain(env: Environment) -> list[EventNode]:

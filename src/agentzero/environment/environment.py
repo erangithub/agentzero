@@ -164,7 +164,7 @@ class Environment:
             if not isinstance(event, MessageEvent):
                 raise RuntimeError(f"Expected MessageEvent, got {type(event)}")
             return event.message
-        elif not self.continue_live:
+        elif self.read_head.prev is not None and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = fn()
         if isinstance(result, TransientEvent):
@@ -192,6 +192,8 @@ class Environment:
                 return event.message
             if not self.continue_live:
                 raise RuntimeError("Replay exhausted")
+        elif self.read_head.prev is not None and not self.continue_live:
+            raise RuntimeError("Replay exhausted")
         result = await fn()
         if not isinstance(result, Message):
             raise RuntimeError(f"Expected Message, got {type(result)}")
@@ -210,6 +212,8 @@ class Environment:
                 return json.loads(event.result)
             if not self.continue_live:
                 raise RuntimeError("Replay exhausted")
+        elif self.read_head.prev is not None and not self.continue_live:
+            raise RuntimeError("Replay exhausted")
         result = fn()
         self._write(CallEvent(fn_name=fn_name, result=json.dumps(result)))
         return result
