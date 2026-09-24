@@ -31,19 +31,19 @@ class ControlKind(Enum):
     branch_cancelled = "branch_cancelled"
 
 
-@dataclass
+@dataclass(frozen=True)
 class ControlEvent:
     control: ControlKind
 
 
-@dataclass
+@dataclass(frozen=True)
 class MessageEvent:
     message: Message
     timestamp: float | None = None
     duration_ms: float | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class CallEvent:
     fn_name: str
     result: str
@@ -53,7 +53,7 @@ class CallEvent:
 
 
 # This event is not recorded
-@dataclass
+@dataclass(frozen=True)
 class TransientEvent:
     value: str
 

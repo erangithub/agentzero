@@ -1,5 +1,4 @@
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import LMStudioLLM
 
 
@@ -7,7 +6,7 @@ def main():
     def get_input():
         return input("You: ")
 
-    env = Environment(llm=LMStudioLLM(), input_fn=get_input)
+    env = Session(llm=LMStudioLLM(), input_fn=get_input).root
 
     while True:
         user_input = env.input()

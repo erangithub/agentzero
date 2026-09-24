@@ -1,5 +1,5 @@
-from agentzero import ToolCall, build_context, tool
-from agentzero.environment import Environment, Tool
+from agentzero import Session, ToolCall, build_context, tool
+from agentzero.environment import Tool
 from agentzero.llms import EchoLLM
 
 
@@ -53,7 +53,7 @@ def test_register_plain_function_without_decorator():
         return f"headline: {topic}"
 
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_fn(llm.complete)
     env.register_input_fn(lambda: "")
     env.register_tool_fns([get_news])
@@ -70,7 +70,7 @@ def test_register_plain_function_without_decorator():
 
 def test_tool_replay_through_env():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_fn(llm.complete)
     env.register_input_fn(lambda: "")
     env.register_tool_fns([get_weather])

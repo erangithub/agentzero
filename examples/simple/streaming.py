@@ -1,13 +1,11 @@
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
 def main():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(llm=llm, input_fn=input, continue_live=True).root
     env.register_llm_stream_fn(llm.stream, name="llm_stream")
-    env.register_input_fn(input)
     env.add_user_message("And I think to myself, what a wonderful world.")
 
     env.rewind(continue_live=True)

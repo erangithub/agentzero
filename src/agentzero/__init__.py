@@ -12,6 +12,7 @@ from agentzero.eventlog import (
     WriteHead,
     build_context,
 )
+from agentzero.session import Session
 from agentzero.tools import tool
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "CallEvent",
     "Message",
     "tool",
+    "Session",
 ]

@@ -1,11 +1,10 @@
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
 def test_hello_world_replay():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_fn(llm.complete)
     env.register_input_fn(input)
     env.add_message("user", "hello")
@@ -22,7 +21,7 @@ def test_hello_world_replay():
 
 def test_hello_world_replay_then_live():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_fn(llm.complete)
     env.register_input_fn(input)
     env.add_message("user", "hello")
@@ -38,7 +37,7 @@ def test_hello_world_replay_then_live():
 
 def test_hello_world_live():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_fn(llm.complete)
     env.register_input_fn(lambda: "hello")
 

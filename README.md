@@ -47,11 +47,11 @@ No schema. No reducer. No `InvalidUpdateError` to debug. Each fork sees its own 
 ---
  
 ```python
-from agentzero import build_context
+from agentzero import Session, build_context
 from agentzero.llms import OpenAILLM
 from agentzero.environment import Environment
  
-env = Environment(llm=OpenAILLM(), input_fn=input)
+env = Session(llm=OpenAILLM(), input_fn=input).root
  
 while True:
     request  = env.input()
@@ -98,12 +98,12 @@ This is [event sourcing](https://martinfowler.com/eaaDev/EventSourcing.html) app
 The same code runs in three modes — recording, replaying, and replay-then-live. No mocks, no test flags, no special cases.
 
 ```python
-from agentzero import build_context
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 from agentzero.environment import Environment
 
 # Record
-env = Environment(llm=EchoLLM(), input_fn=input)
+env = Session(llm=EchoLLM(), input_fn=input).root
 env.add_message(role="user", content="hello")
 env.add_message(role="assistant", content="echo: hello")
 
@@ -120,7 +120,7 @@ assert response.content == "echo: hello"
 You can also replay up to a point, then continue live:
 
 ```python
-env = Environment(llm=OpenAILLM(), input_fn=input, continue_live=True)
+env = Session(llm=OpenAILLM(), input_fn=input, continue_live=True).root
 env.add_message(role="user", content="hello")
 
 env.rewind()
@@ -179,7 +179,7 @@ History and state are separate by design. A fork isolates *history* — what the
 from agentzero.environment import Environment, Tool
 
 tools = [Tool(name="get_weather", fn=get_weather, schema=weather_schema)]
-env = Environment(llm=OpenAILLM(), input_fn=input)
+env = Session(llm=OpenAILLM(), input_fn=input).root
 env.register_tool_fns(tools)
 
 while True:
@@ -204,7 +204,7 @@ Tool calls registered this way go through the same replay-or-execute mechanism a
 LLM calls and tool calls are just the built-in cases. Anything non-deterministic can go through the same mechanism:
 
 ```python
-env = Environment()
+env = Session().root
 
 get_price = env.nondet(get_price_fn)   # wrapped, local reference
 env.register_nondet(get_price_fn)      # or attached to env by name

@@ -1,11 +1,10 @@
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
 def _make_env():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_fn(llm.complete)
     env.register_input_fn(lambda: "")
     return env

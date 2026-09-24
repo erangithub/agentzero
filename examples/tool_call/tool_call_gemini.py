@@ -1,7 +1,6 @@
 import os
 
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import GeminiLLM
 
 
@@ -16,11 +15,12 @@ def main():
         api_key=os.environ.get("GEMINI_API_KEY"),
     )
 
-    env = Environment(llm=llm, continue_live=True)
+    env = Session(
+        llm=llm,
+        input_fn=lambda: "Use the get_weather tool to tell me what the weather is in london.",
+        continue_live=True,
+    ).root
     env.register_tool_fns([get_weather])
-    env.register_input_fn(
-        lambda: "Use the get_weather tool to tell me what the weather is in london."
-    )
     env.input()
 
     context = build_context(env.history())

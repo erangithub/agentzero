@@ -1,4 +1,4 @@
-from agentzero.environment import Environment
+from agentzero import Session
 from agentzero.llms import EchoLLM
 
 _price_counter = 0
@@ -14,7 +14,9 @@ def test_nondet_replay():
     global _price_counter
     _price_counter = 0
 
-    env = Environment(llm=EchoLLM(), input_fn=lambda: "", continue_live=True)
+    env = Session().root
+    env.register_llm_fn(EchoLLM().complete)
+    env.register_input_fn(lambda: "")
     det_get_price = env.nondet(get_price)
 
     result1 = det_get_price("AAPL")

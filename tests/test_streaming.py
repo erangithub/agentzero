@@ -1,5 +1,4 @@
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
@@ -25,7 +24,7 @@ def stream_flow(env):
 
 def test_streaming():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
+    env = Session(continue_live=True).root
     env.register_llm_stream_fn(llm.stream, name="llm_stream")  # event name: llm.complete
     env.register_input_fn(lambda: "one two three four five")
 

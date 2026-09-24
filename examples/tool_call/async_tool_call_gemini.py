@@ -1,8 +1,7 @@
 import asyncio
 import os
 
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import GeminiLLM
 
 
@@ -17,10 +16,12 @@ async def main():
         api_key=os.environ.get("GEMINI_API_KEY"),
     )
 
-    env = Environment(continue_live=True)
-    env.register_llm_afn(llm.acomplete)
+    env = Session(
+        llm=llm,
+        input_fn=lambda: "What's the weather in London?",
+        continue_live=True,
+    ).root
     env.register_tool_fns([get_weather])
-    env.register_input_fn(lambda: "What's the weather in London?")
     env.input()
 
     context = build_context(env.history())

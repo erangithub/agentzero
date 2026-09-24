@@ -1,13 +1,13 @@
 import asyncio
 
-from agentzero import build_context
-from agentzero.environment.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
 async def main():
-    # 1. Setup Environment
-    env = Environment(llm=EchoLLM(), continue_live=True)
+    # 1. Setup the shared session (its root env is where the story starts)
+    #    Forks inherit the registered llm functions automatically
+    env = Session(llm=EchoLLM(), continue_live=True).root
 
     # 2. Add the Initial "Context" (The Trunk)
     env.add_message("user", "Analyze the impact of remote work on urban planning.")

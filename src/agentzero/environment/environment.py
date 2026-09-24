@@ -20,7 +20,7 @@ from agentzero.eventlog import (
     TransientEvent,
     WriteHead,
 )
-from agentzero.llms.base import LLM
+from agentzero.session import Session
 
 T = TypeVar("T")
 
@@ -40,10 +40,16 @@ def transient(value: Any):
 
 
 class Environment:
+    """A view over the shared session store: a read head + write head.
+
+    Environments are never constructed directly by users. They are created by a
+    ``Session`` (``session.root``), by ``Session.from_json``, or by another
+    environment's ``fork()``. The session is the single entry point.
+    """
+
     def __init__(
         self,
-        llm: LLM | None = None,
-        input_fn: Callable[[], str] | None = None,
+        session: Session,
         continue_live: bool = False,
         origin_node: EventNode | None = None,
         registered_fns: dict[str, Callable] | None = None,
@@ -58,15 +64,8 @@ class Environment:
         self.origin_node = origin_node
         self.write_head = WriteHead(prev=origin_node)
         self.forks: dict[str, list[Environment]] = {}
-
-        if llm is not None:
-            self.register_llm_fn(llm.complete)
-            if hasattr(llm, "acomplete"):
-                self.register_llm_afn(llm.acomplete)
-            if hasattr(llm, "stream"):
-                self.register_llm_stream_fn(llm.stream)
-        if input_fn is not None:
-            self.register_input_fn(input_fn)
+        self.session = session
+        session.register(self)
 
         self.rewind(continue_live)
         self.replay_stop_predicate: Callable[[EventNode], bool] | None = None
@@ -142,6 +141,7 @@ class Environment:
             forked_env.rewind()
         else:
             forked_env = Environment(
+                self.session,
                 continue_live=self.continue_live,
                 origin_node=self.write_head.fork(),
                 registered_fns=self.registered_fns,

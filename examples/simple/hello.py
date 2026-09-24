@@ -1,13 +1,10 @@
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
 def main():
     llm = EchoLLM()
-    env = Environment(continue_live=True)
-    env.register_llm_fn(llm.complete)
-    env.register_input_fn(input)
+    env = Session(llm=llm, input_fn=input, continue_live=True).root
     env.add_user_message("hello")
     response = env.llm_complete(build_context(env.history()))
     print(response)

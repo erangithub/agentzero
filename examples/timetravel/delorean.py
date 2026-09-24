@@ -1,5 +1,5 @@
-from agentzero import build_context
-from agentzero.environment import Environment, transient
+from agentzero import Session, build_context
+from agentzero.environment import transient
 from agentzero.llms import EchoLLM  # LMStudioLLM  # or OllamaLLM
 
 
@@ -23,19 +23,18 @@ def get_input(depth):
     return user_input
 
 
-def fresh_env():
-    env = Environment(llm=EchoLLM(), continue_live=True)
-    env.register_input_fn(get_input)
-    return env
+def fresh_session():
+    return Session(llm=EchoLLM(), input_fn=get_input, continue_live=True)
 
 
 def main():
-    env = fresh_env()
+    session = fresh_session()
+    env = session.root
 
     print("Chat with your LLM. Commands:")
     print("  'b' — roll back the last exchange")
     print("  'n' - move to the next exchange")
-    print("  'reset' - reset environment")
+    print("  'reset' - start a new session")
     print("  'quit' — exit")
     print()
 
@@ -43,8 +42,9 @@ def main():
         user_input = env.input(env.current_depth)
 
         if user_input == "reset":
-            print("Environment resetted")
-            env = fresh_env()
+            print("Starting a new session")
+            session = fresh_session()
+            env = session.root
             continue
 
         if user_input == "quit":

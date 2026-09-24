@@ -1,5 +1,5 @@
-from agentzero import build_context
-from agentzero.environment import Environment, transient
+from agentzero import Session, build_context
+from agentzero.environment import transient
 from agentzero.llms import EchoLLM
 
 
@@ -56,7 +56,8 @@ def test_go_back_discards_rolled_back_exchange():
     'n' (next-exchange) and 'quit' are also exercised here — command inputs are
     transient and never enter the log.
     """
-    env = Environment(llm=EchoLLM(), continue_live=True)
+    env = Session(continue_live=True).root
+    env.register_llm_fn(EchoLLM().complete)
     run_session(env, ["apple", "b", "banana", "n", "quit"])
 
     # Only the kept exchange survives — the apple exchange is discarded.
@@ -64,7 +65,8 @@ def test_go_back_discards_rolled_back_exchange():
 
 
 def test_replay_of_kept_log_is_deterministic():
-    env = Environment(llm=EchoLLM(), continue_live=True)
+    env = Session(continue_live=True).root
+    env.register_llm_fn(EchoLLM().complete)
     run_session(env, ["apple", "b", "banana", "quit"])
 
     kept = messages(env)

@@ -1,4 +1,4 @@
-from agentzero.environment import Environment
+from agentzero import Session
 
 _price_counter = 0
 
@@ -13,7 +13,7 @@ def main():
     global _price_counter
     _price_counter = 0
 
-    env = Environment()
+    env = Session().root
 
     det_get_price = env.nondet(get_price)
 

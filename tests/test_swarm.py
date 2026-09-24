@@ -1,7 +1,6 @@
 import asyncio
 
-from agentzero import build_context
-from agentzero.environment import Environment
+from agentzero import Session, build_context
 from agentzero.llms import EchoLLM
 
 
@@ -9,7 +8,9 @@ def test_async_parallel_forks():
     """Mirrors examples/swarm/swarm.py — parallel fork + reduce back to trunk."""
 
     async def main():
-        env = Environment(llm=EchoLLM(), continue_live=True)
+        env = Session(continue_live=True).root
+        env.register_llm_fn(EchoLLM().complete)
+        env.register_llm_afn(EchoLLM().acomplete)
         env.add_message("user", "Analyze the impact of remote work on urban planning.")
 
         # Map: create branches sequentially to lock in the log order
@@ -58,7 +59,8 @@ def test_async_parallel_forks():
 
 def test_print_tree_runs_on_forked_log():
     """Mirrors the 'Inspect the Tree' step of examples/swarm/swarm.py."""
-    env = Environment(llm=EchoLLM(), continue_live=True)
+    env = Session(continue_live=True).root
+    env.register_llm_fn(EchoLLM().complete)
     env.add_message("user", "hello")
     fork_a = env.fork()
     fork_a.llm_complete(build_context(env.history(), system="Branch A"))
