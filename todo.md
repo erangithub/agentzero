@@ -21,13 +21,15 @@
 
 ## Quality / CI
 - [x] GitHub Actions workflow (pytest on 3.10+, ruff check/format, mypy)
-- [x] ruff + mypy config in `pyproject.toml`
+- [x] ruff + mypy config in `pyproject.toml` (markdown excluded from ruff format — README alignment is intentional)
 - [x] `py.typed` marker for a typed framework
+- [ ] Push and confirm CI is green end-to-end
 
 ## Packaging
-- [x] `requires-python`, license, project URLs in `pyproject.toml`
+- [x] `requires-python`, license, readme, classifiers in `pyproject.toml`
 - [x] dev dependency group (`pytest`, `ruff`, `mypy`)
 - [x] `[tool.pytest.ini_options]` config
+- [ ] Publish to PyPI (confirm name on PyPI first — supersedes "choose a name")
 - [ ] Changelog / version notes
 
 ## Docs
