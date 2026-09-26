@@ -11,7 +11,7 @@ def get_input(depth):
         user_input = debug_input.pop(0)
     else:
         user_input = input(f"{depth} > ").strip()
-    if user_input.startswith("/"):
+    if user_input.startswith("/") or not user_input:
         return transient(user_input)
     return user_input
 
@@ -34,6 +34,8 @@ def main():
 
     while True:
         user_input = env.input(env.current_depth)
+        if (not user_input):
+            continue
 
         if user_input.startswith("/"):
             command = user_input[1:]
