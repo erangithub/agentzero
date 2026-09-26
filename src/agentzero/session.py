@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class Session:
     """Shared container for every ``Environment`` of a run.
 
-    Owns the single event DAG that all environments are cursors over, and the
+    Owns the single event tree that all environments are cursors over, and the
     parent->child cursor topology (which the log itself no longer records).
     Each environment is registered by its own ``id``, since cursors are no
     longer identified by a unique branch node — several may share a fork point.
@@ -78,8 +78,8 @@ class Session:
     def print_tree(self):
         """Print the whole event log as a forest of branches.
 
-        This is the session-wide view: it walks the shared DAG from every root,
-        so branches orphaned by ``rewind()`` + ``go_live()`` are shown too. A
+        This is the session-wide view: it walks the tree from every root, so
+        branches orphaned by ``rewind()`` + ``go_live()`` are shown too. A
         branch with no live cursor on it was abandoned — its nodes are still in
         the log but no environment's heads point at them, so they no longer
         affect replay. That is the visible side effect of undo/branching in a
@@ -97,7 +97,7 @@ class Session:
             print("(empty log)")
             return
 
-        # Build parent -> children so we can walk the DAG (each node's event
+        # Build parent -> children so we can walk the tree (each node's event
         # links to the next event written after it). Walking up from any node
         # reaches a root, and every root is drawn into the one tree.
         children: dict[str | None, list[EventNode]] = {}
@@ -131,8 +131,8 @@ class Session:
     def to_json(self) -> str:
         envs = self.envs()
 
-        # Walk each cursor's tail up to the head of the shared DAG. The union is
-        # the whole log; shared ancestors are collected once.
+        # Walk each cursor's tail up to the head of the tree. The union is
+        # the whole log; ancestors common to several cursors are collected once.
         nodes: dict[str, EventNode] = {}
         for env in envs:
             node = env.write_head.prev
@@ -269,7 +269,7 @@ def _tree_lines(roots, children, on_row, after) -> list[str]:
     ``*``. Rewinding to the start and writing orphans the old log, and a session
     can then genuinely have more than one root; those are drawn as extra
     top-level branches of the same tree rather than as separate ones. Their
-    ``parent`` is still ``None`` in the DAG -- they are only *drawn* side by
+    ``parent`` is still ``None`` in the log -- they are only *drawn* side by
     side, never re-parented.
 
     Every row carries a two-character left margin. ``>`` marks the row of the

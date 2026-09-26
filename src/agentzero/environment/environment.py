@@ -49,7 +49,7 @@ class Environment:
     ``fork_point`` (the log node it branched from, ``None`` for the root) and
     moves by advancing its two heads. ``fork()`` places another cursor at the
     current write-head node without writing anything, so the log stays a single
-    shared DAG in which the trunk is not structurally special.
+    tree in which the trunk is not structurally special.
 
     Environments are never constructed directly by users. They are created by a
     ``Session`` (``session.root``), by ``Session.from_json``, or by another
