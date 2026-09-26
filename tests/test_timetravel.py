@@ -140,9 +140,50 @@ def test_session_tree_is_one_tree_rooted_at_a_bare_star(capsys):
     assert "===" not in out
     # both branches live in this one tree, in one contiguous block
     assert "u2" in out and "u2b" in out
-    assert not [ln for ln in lines if not ln.strip()]
+    assert "===" not in out
     # every row carries the two-character left margin
     assert all(ln[:2] in ("  ", "> ") for ln in lines)
+    # padding lines carry only margin and rails
+    assert all(set(ln) <= {" ", "│"} for ln in lines if "*" not in ln)
+
+
+def test_session_tree_pads_after_a_branch_end(capsys):
+    """A branch that ends is followed by a blank line, carrying the rails of the
+    columns still open above it."""
+    env = Session(llm=EchoLLM(), continue_live=True).root
+
+    def exchange(target, text):
+        target.add_user_message(text)
+        target.llm_complete(build_context(target.history()))
+
+    exchange(env, "a")
+    exchange(env, "b")
+    # two cursors off the same node, so one branch ends mid-tree
+    fork = env.fork()
+    exchange(env, "c")
+    exchange(fork, "d")
+
+    env.session.print_tree()
+    lines = capsys.readouterr().out.splitlines()
+
+    # padding carries no node glyph; every real row has one
+    blanks = [i for i, ln in enumerate(lines) if "*" not in ln]
+    assert blanks, "a branch that ends mid-tree should be padded"
+
+    for i in blanks:
+        # only the left margin and rails, never a stray glyph or trailing space
+        assert set(lines[i]) <= {" ", "│"}
+        assert not lines[i].endswith(" ")
+        # padded after real content, and not past the end of the tree
+        assert 0 < i < len(lines) - 1
+        # the rails sit in the same column as the branch they belong to
+        for col, ch in enumerate(lines[i]):
+            if ch == "│":
+                assert lines[i - 1][col] == "│"
+
+    # both branches are still drawn, separated by the padding
+    drawn = "\n".join(lines)
+    assert "[user] c" in drawn and "[user] d" in drawn
 
 
 def test_session_tree_shows_orphaned_branches(capsys):

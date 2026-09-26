@@ -276,6 +276,10 @@ def _tree_lines(roots, children, on_row, after) -> list[str]:
     event an env will produce next; when an env has caught up with its own tail
     there is no next event, so the cursor is drawn alone on the empty line just
     after the node it follows.
+
+    A branch that ends -- a node with no children -- is followed by a blank line
+    to separate it from whatever comes next, carrying the rails of the columns
+    still open above it so the reader's eye stays on the branch it is in.
     """
     out: list[str] = []
 
@@ -284,9 +288,17 @@ def _tree_lines(roots, children, on_row, after) -> list[str]:
         margin = ">" if node.id in on_row else " "
         out.append(f"{margin} {base}{connector}* {_node_label(node)}")
 
+        # Only a node that opened a column hands a rail down, which is why
+        # linear runs and last-sibling subtrees both stay in their parent's.
         child_base = base + ("│  " if connector == "├──" else "")
         if node.id in after:
             out.append(f"> {child_base}*")
+
+        if not kids:
+            # Same left margin as the row above, so the rails stay in column.
+            out.append(f"{margin} {child_base}".rstrip())
+            return
+
         last = len(kids) - 1
         for i, kid in enumerate(kids):
             walk(kid, child_base, "" if i == last else "├──")
@@ -294,6 +306,11 @@ def _tree_lines(roots, children, on_row, after) -> list[str]:
     last = len(roots) - 1
     for i, root in enumerate(roots):
         walk(root, "", "" if i == last else "├──")
+
+    # Padding past the end of the tree separates nothing, so drop it. A padding
+    # line can still carry rails, so test for the missing node glyph.
+    if out and "*" not in out[-1]:
+        out.pop()
     return out
 
 
