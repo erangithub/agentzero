@@ -13,16 +13,16 @@ def prev_user_depth(env) -> int | None:
 def run_session(env, commands):
     """Mirrors examples/timetravel/delorean.py main loop with scripted input.
 
-    Commands ('b', 'n', 'quit', 'reset') are returned as ``transient`` so they
-    never enter the log — matching the example's ``get_input``.
+    Slash commands ('/b', '/n', '/quit', '/reset') are returned as ``transient``
+    so they never enter the log — matching the example's ``get_input``.
     """
     inputs = list(commands)
 
     def get_input(depth=None):
         if not inputs:
-            return transient("quit")
+            return transient("/quit")
         value = inputs.pop(0)
-        if value in ("b", "n", "quit", "reset"):
+        if value.startswith("/"):
             return transient(value)
         return value
 
@@ -31,16 +31,16 @@ def run_session(env, commands):
     while True:
         user_input = env.input(env.current_depth)
 
-        if user_input == "quit":
+        if user_input == "/quit":
             break
 
-        if user_input == "b":
+        if user_input == "/b":
             target_depth = prev_user_depth(env)
             env.rewind()
             env.replay_until(lambda n, d=target_depth: n.depth >= d)
             continue
 
-        if user_input == "n":
+        if user_input == "/n":
             current_depth = env.current_depth
             env.replay_until(lambda n, d=current_depth: n.is_message("user") and n.depth > d)
             continue
@@ -60,7 +60,7 @@ def test_go_back_discards_rolled_back_exchange():
     """
     env = Session(continue_live=True).root
     env.register_llm_fn(EchoLLM().complete)
-    run_session(env, ["apple", "b", "banana", "n", "quit"])
+    run_session(env, ["apple", "/b", "banana", "/n", "/quit"])
 
     # Only the kept exchange survives — the apple exchange is discarded.
     assert messages(env) == [("user", "banana"), ("assistant", "echo: banana")]
@@ -124,10 +124,32 @@ def test_async_message_going_live_anchors_at_read_head():
     ]
 
 
+def test_session_tree_shows_orphaned_branches(capsys):
+    """The session tree must show branches abandoned by go_live, not just the
+    live cursor's history — that's the visible side effect of an undo."""
+    env = _two_exchanges()  # u1/a1/u2/a2
+    env.rewind()
+    # Park on u1, then go live: this writes a fresh root and orphans a1/u2/a2.
+    env.replay_until(lambda n: n.is_message("user") and n.event.message.content == "u1")
+    env.add_user_message("u3")
+    env.llm_complete(build_context(env.history()))
+
+    # The abandoned branch is no longer reachable from the env's write head...
+    assert tail_messages(env) == [("user", "u3"), ("assistant", "echo: u3")]
+
+    # ...but the session still holds it, and labels it orphaned.
+    env.session.print_tree()
+    out = capsys.readouterr().out
+    assert "u1" in out and "u2" in out  # the discarded branch is present
+    assert "(orphaned)" in out
+    assert "<writehead>" in out  # the live cursor is marked
+    assert "u3" in out
+
+
 def test_replay_of_kept_log_is_deterministic():
     env = Session(continue_live=True).root
     env.register_llm_fn(EchoLLM().complete)
-    run_session(env, ["apple", "b", "banana", "quit"])
+    run_session(env, ["apple", "/b", "banana", "/quit"])
 
     kept = messages(env)
     assert kept == [("user", "banana"), ("assistant", "echo: banana")]
@@ -137,7 +159,7 @@ def test_replay_of_kept_log_is_deterministic():
     replayed = []
     while True:
         user_input = env.input()
-        if user_input == "quit":
+        if user_input == "/quit":
             break
         assert user_input == "banana"
         response = env.llm_complete(build_context(env.history()))

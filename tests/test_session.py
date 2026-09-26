@@ -81,20 +81,20 @@ def test_orphaned_nodes_are_not_restored():
     """Rolled-back exchanges (delorean 'b') stay gone after load."""
     env = Session(continue_live=True).root
     env.register_llm_fn(EchoLLM().complete)
-    inputs = ["apple", "b", "banana", "quit"]
+    inputs = ["apple", "/b", "banana", "/quit"]
 
     def get_input(depth=None):
         if not inputs:
-            return transient("quit")
+            return transient("/quit")
         value = inputs.pop(0)
-        return transient(value) if value in ("b", "quit") else value
+        return transient(value) if value.startswith("/") else value
 
     env.register_input_fn(get_input)
     while True:
         user_input = env.input(env.current_depth)
-        if user_input == "quit":
+        if user_input == "/quit":
             break
-        if user_input == "b":
+        if user_input == "/b":
             target = None
             node = env.prev_node.find(lambda n: n.is_message("user"))
             if node:

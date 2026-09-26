@@ -65,4 +65,4 @@ def test_print_tree_runs_on_forked_log():
     fork_a = env.fork()
     fork_a.llm_complete(build_context(env.history(), system="Branch A"))
 
-    env.print_tree()  # should not raise on a log with forks
+    env.session.print_tree()  # should not raise on a log with forks

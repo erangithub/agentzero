@@ -42,6 +42,10 @@ class Session:
 
         self._lock = threading.Lock()
         self._envs: dict[str, Environment] = {}
+        # Every node ever created in this session, including nodes orphaned by a
+        # rewind+go_live. Kept so the full branch structure stays inspectable;
+        # to_json still persists only nodes reachable from an env's heads.
+        self._nodes: dict[str, EventNode] = {}
         self.root = None
         if _make_root:
             root = Environment(self, continue_live=continue_live)
@@ -55,6 +59,10 @@ class Session:
         with self._lock:
             self._envs[env.id] = env
 
+    def record_node(self, node: EventNode) -> None:
+        with self._lock:
+            self._nodes[node.id] = node
+
     def __getitem__(self, env_id: str) -> Environment:
         with self._lock:
             return self._envs[env_id]
@@ -66,6 +74,56 @@ class Session:
     def __len__(self) -> int:
         with self._lock:
             return len(self._envs)
+
+    def print_tree(self):
+        """Print the whole event log as a forest of branches.
+
+        This is the session-wide view: it walks the shared DAG from every root,
+        so branches orphaned by ``rewind()`` + ``go_live()`` are shown too. A
+        branch with no live cursor on it was abandoned — its nodes are still in
+        the log but no environment's heads point at them, so they no longer
+        affect replay. That is the visible side effect of undo/branching in a
+        live session, and the reason this lives on the session rather than an
+        environment: an environment can only reach its own live history and the
+        forks cut from it, never the abandoned branches.
+
+        Rendered in the style of ``tree.md``: a non-last sibling opens a new
+        column with ``├──``, while the last sibling stays in its parent's column
+        with no connector. Oldest event first.
+        """
+        with self._lock:
+            nodes = list(self._nodes.values())
+        if not nodes:
+            print("(empty log)")
+            return
+
+        # Build parent -> children so we can walk the DAG (each node's event
+        # links to the next event written after it, forming a forest of roots).
+        children: dict[str | None, list[EventNode]] = {}
+        for node in nodes:
+            key = node.parent.id if node.parent is not None else None
+            children.setdefault(key, []).append(node)
+        for kids in children.values():
+            kids.sort(key=lambda n: (n.depth, n.id))
+
+        # Mark where each live cursor's read and write heads sit in the log.
+        marks: dict[str, list[str]] = {}
+        for env in self.envs():
+            for head, label in ((env.read_head, "<readhead>"), (env.write_head, "<writehead>")):
+                node = head.prev
+                if node is None:
+                    continue
+                tags = marks.setdefault(node.id, [])
+                if label not in tags:  # several cursors can share one node
+                    tags.append(label)
+
+        roots = children.get(None, [])
+        for i, root in enumerate(roots):
+            live = _subtree_has_mark(root, children, marks)
+            header = f"root {i + 1}" + ("" if live else "  (orphaned)")
+            print(f"\n=== {header} ===")
+            for line in _tree_lines(root, children, marks):
+                print(line)
 
     # --- JSON serialization (language-agnostic JSONL; DB persistence comes later) ---
 
@@ -146,6 +204,8 @@ class Session:
         from agentzero.environment import Environment
 
         session = cls(continue_live=continue_live, _make_root=False)
+        for node in nodes.values():
+            session.record_node(node)
         envs: list[Environment] = []
         for record in env_records:
             fork_point_id = record["fork_point"]
@@ -192,6 +252,58 @@ def _register_llm(env, llm) -> None:
         env.register_llm_afn(llm.acomplete)
     if hasattr(llm, "stream"):
         env.register_llm_stream_fn(llm.stream)
+
+
+def _subtree_has_mark(node, children, marks) -> bool:
+    if node.id in marks:
+        return True
+    return any(_subtree_has_mark(kid, children, marks) for kid in children.get(node.id, []))
+
+
+# Rows are (lane, label, is_split). A split row has no label; it just draws the
+# ``|\`` that opens the next lane.
+_Row = tuple[int, "str | None", bool]
+
+
+def _tree_lines(root, children, marks) -> list[str]:
+    """Lay one tree out in the style of ``tree.md``, oldest event first.
+
+    A non-last sibling opens a new column and is drawn with ``├──``; the *last*
+    sibling never opens a new column and gets no connector at all, so it lands
+    back in its parent's column. A node only hands a ``│  `` rail down to its
+    children when it drew ``├──`` -- which is why linear runs and last-sibling
+    subtrees both stay in the column they started in. There is no ``└──``: a
+    branch that ends simply stops.
+    """
+    out: list[str] = []
+
+    def walk(node, base: str, connector: str) -> None:
+        label = _node_label(node)
+        tags = marks.get(node.id)
+        if tags:
+            label += f"   [{', '.join(tags)}]"
+        out.append(f"{base}{connector}* {label}")
+
+        child_base = base + ("│  " if connector == "├──" else "")
+        kids = children.get(node.id, [])
+        last = len(kids) - 1
+        for i, kid in enumerate(kids):
+            walk(kid, child_base, "" if i == last else "├──")
+
+    walk(root, "", "")
+    return out
+
+
+def _node_label(node: EventNode) -> str:
+    if isinstance(node.event, MessageEvent):
+        msg = node.event.message
+        content = msg.content
+        if content and len(content) > 50:
+            content = content[:50] + "..."
+        return f"[{msg.role}] {content or ''}".rstrip()
+    if isinstance(node.event, CallEvent):
+        return f"[call:{node.event.fn_name}]"
+    return f"[{type(node.event).__name__}]"
 
 
 def _node_record(node: EventNode) -> dict:

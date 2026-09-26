@@ -54,9 +54,10 @@ async def main():
     print(final_report.content)
 
     # 6. Inspect the Tree
-    # This shows the one-to-many relationship clearly
+    # This shows the one-to-many relationship clearly (session-wide view,
+    # git-log style: flat for linear runs, connectors where the log branches)
     print("\n=== Event Log Structure ===")
-    env.print_tree()
+    env.session.print_tree()
 
 
 if __name__ == "__main__":
