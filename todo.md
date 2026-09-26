@@ -6,13 +6,20 @@
 
 ## High-priority features
 - [x] **`Session`** — the single entry point (owns the root `Environment`; branches come from `fork()`/`from_json`); thread-safe registry of environments keyed by origin node; single source of truth for parent→child topology; direct `Environment` construction is undocumented (docstring: "only created by a Session")
-- [x] **JSON persistence (in-memory JSONL round-trip)** — `Session.to_json()` / `Session.from_json()` with language-agnostic spec; DB/file I/O deferred (`tests/test_session.py`)
-  - [ ] **Log persistence** — horizon: `stored()` / `load()` from disk wrapped around the JSON round-trip (the log currently lives only in memory)
-  - [ ] Persistence format must be language-agnostic (JSON/JSONL spec) since a future **C++ port** will need to read/write the same logs
+- [x] **JSON persistence** — `Session.to_json()` / `Session.from_json()` language-agnostic JSONL round-trip; a reloaded session replays from origin, then continues live; disk usage in `examples/simple/persist.py` (`.sessions/*.jsonl`) (`tests/test_session.py`)
+  - [ ] **Log persistence API** — horizon: `store()` / `load()` from disk wrapped around the JSON round-trip
+- [ ] **Postgres persistence** — same `store()`/`load()` surface backed by a log table (JSONL stays the wire format); not started
+- [ ] Persistence format must be language-agnostic (JSON/JSONL spec) since a future **C++ port** will need to read/write the same logs
 - [ ] **(future) C++ interop** — not a full parallel framework; language-agnostic log format + small native *consumer/continuation* libraries (C++, optionally TS) so other hosts can read-and-continue Python-written logs
 - [ ] **Token/cost accounting** — record usage metadata per LLM event; `examples/token_saving/` is currently empty
 - [x] **`@tool` decorator** — thin, Pydantic-backed schema inference (`create_model` → `model_json_schema()`) returning `Tool`, with `schema=`/`name=` overrides; decorated fns stay callable; verbatim `Tool` construction still supported for bring-your-own-schema users
 - [ ] **Language-agnostic log format** — lock the on-disk spec (JSON/JSONL) once persistence lands, so future TS/C++ consumers can read-and-continue
+
+## Replay timing & pacing (stashed — rebuild one item at a time)
+- [ ] **Record per-event timing** — stamp every `MessageEvent`/`CallEvent` at write time with a wall-clock `timestamp` and a measured `duration_ms` (survives the JSONL round-trip)
+- [ ] **`Sequence.iter_timed()`** — yield timed events with `delta_ms` (unfolded wall delta vs the previous timed event) and `gap_ms` (time consumed by neither event), skipping control/branch nodes
+- [ ] **Async non-deterministic events** — `_acall_event` + async-aware `nondet`/`register_nondet`, so async flows record timers/tools like sync ones do
+- [ ] **`replay_speed` pacing** — replay a loaded session against its recorded timeline: `0`/`None` = instant, `1.0` = real time, `2.0` = 2x. Settable at load (`Session.from_json(..., speed=)`) or changed any time on a live `env`; needs a sync and an async read path
 
 ## Tests (prove the thesis)
 - [x] Fork semantics: parent log untouched, fork replay from its write head (`tests/test_fork.py`)
