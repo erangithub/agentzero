@@ -106,23 +106,20 @@ class Session:
         for kids in children.values():
             kids.sort(key=lambda n: (n.depth, n.id))
 
-        # Mark where each live cursor's read and write heads sit in the log.
-        marks: dict[str, list[str]] = {}
+        # Mark the nodes that hold a live cursor. Read and write heads are the
+        # same position once an env goes live, so one marker per node is enough.
+        cursors: set[str] = set()
         for env in self.envs():
-            for head, label in ((env.read_head, "<readhead>"), (env.write_head, "<writehead>")):
-                node = head.prev
-                if node is None:
-                    continue
-                tags = marks.setdefault(node.id, [])
-                if label not in tags:  # several cursors can share one node
-                    tags.append(label)
+            node = env.prev_node
+            if node is not None:
+                cursors.add(node.id)
 
         roots = children.get(None, [])
         for i, root in enumerate(roots):
-            live = _subtree_has_mark(root, children, marks)
+            live = _subtree_has_cursor(root, children, cursors)
             header = f"root {i + 1}" + ("" if live else "  (orphaned)")
             print(f"\n=== {header} ===")
-            for line in _tree_lines(root, children, marks):
+            for line in _tree_lines(root, children, cursors):
                 print(line)
 
     # --- JSON serialization (language-agnostic JSONL; DB persistence comes later) ---
@@ -254,10 +251,10 @@ def _register_llm(env, llm) -> None:
         env.register_llm_stream_fn(llm.stream)
 
 
-def _subtree_has_mark(node, children, marks) -> bool:
-    if node.id in marks:
+def _subtree_has_cursor(node, children, cursors) -> bool:
+    if node.id in cursors:
         return True
-    return any(_subtree_has_mark(kid, children, marks) for kid in children.get(node.id, []))
+    return any(_subtree_has_cursor(kid, children, cursors) for kid in children.get(node.id, []))
 
 
 # Rows are (lane, label, is_split). A split row has no label; it just draws the
@@ -265,7 +262,7 @@ def _subtree_has_mark(node, children, marks) -> bool:
 _Row = tuple[int, "str | None", bool]
 
 
-def _tree_lines(root, children, marks) -> list[str]:
+def _tree_lines(root, children, cursors) -> list[str]:
     """Lay one tree out in the style of ``tree.md``, oldest event first.
 
     A non-last sibling opens a new column and is drawn with ``├──``; the *last*
@@ -274,15 +271,15 @@ def _tree_lines(root, children, marks) -> list[str]:
     children when it drew ``├──`` -- which is why linear runs and last-sibling
     subtrees both stay in the column they started in. There is no ``└──``: a
     branch that ends simply stops.
+
+    Every row carries a two-character left margin; ``>`` in the first column
+    marks a row that holds a live cursor.
     """
     out: list[str] = []
 
     def walk(node, base: str, connector: str) -> None:
-        label = _node_label(node)
-        tags = marks.get(node.id)
-        if tags:
-            label += f"   [{', '.join(tags)}]"
-        out.append(f"{base}{connector}* {label}")
+        margin = "> " if node.id in cursors else "  "
+        out.append(f"{margin}{base}{connector}* {_node_label(node)}")
 
         child_base = base + ("│  " if connector == "├──" else "")
         kids = children.get(node.id, [])
