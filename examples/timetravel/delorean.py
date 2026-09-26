@@ -1,4 +1,4 @@
-from agentzero import Session, build_context
+from agentzero import Sequence, Session, build_context
 from agentzero.environment import transient
 from agentzero.llms import EchoLLM  # LMStudioLLM  # or OllamaLLM
 
@@ -72,17 +72,26 @@ def main():
                 continue
 
             if command == "n":
-                if not env.is_replay:
-                    print("No more steps")
-                    continue
-                current_depth = env.current_depth
-                env.replay_until(lambda n, d=current_depth: n.is_message("user") and n.depth > d)
-                if not env.is_replay:
+                # "Is anything ahead?" is next_node, not is_replay: straight
+                # after a /b the stop predicate blocks on the very first node,
+                # so is_replay is False even though the log is still unread.
+                users = [
+                    n
+                    for n in Sequence(
+                        after_node=env.prev_node, to_node=env.write_head.prev
+                    ).iter_nodes()
+                    if n.is_message("user")
+                ]
+                if len(users) >= 2:
+                    env.replay_until(lambda n, d=users[1].depth: n.depth >= d)
                     print("Going to next user input")
+                elif users:
+                    # One exchange left: replay it, then let the next read go
+                    # live. A predicate that never fires walks to the end and
+                    # then stops on its own, so the tail is not orphaned.
+                    env.replay_until(lambda n: False)
+                    print("Replayed to the end of the log")
                 else:
-                    # Nothing between here and the end, so release the replay
-                    # instead of replaying the rest of the log back at the user.
-                    env.go_live()
                     print("No more steps")
                 continue
 
