@@ -124,9 +124,31 @@ def test_async_message_going_live_anchors_at_read_head():
     ]
 
 
+def test_session_tree_is_one_tree_rooted_at_a_bare_star(capsys):
+    """A single-root log is one tree: it opens on a bare ``*`` and every branch
+    hangs off that root, with no per-root headers."""
+    env = _two_exchanges()  # u1/a1/u2/a2
+    fork = env.fork()
+    fork.add_user_message("u2b")  # a second branch off the same root
+
+    env.session.print_tree()
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+
+    # opens on a bare `*` -- the left margin, but no connector
+    assert lines[0] == "  * [user] u1"
+    assert "===" not in out
+    # both branches live in this one tree, in one contiguous block
+    assert "u2" in out and "u2b" in out
+    assert not [ln for ln in lines if not ln.strip()]
+    # every row carries the two-character left margin
+    assert all(ln[:2] in ("  ", "> ") for ln in lines)
+
+
 def test_session_tree_shows_orphaned_branches(capsys):
     """The session tree must show branches abandoned by go_live, not just the
-    live cursor's history — that's the visible side effect of an undo."""
+    live cursor's history — that's the visible side effect of an undo. They are
+    drawn as extra branches of the one tree, with no per-root headers."""
     env = _two_exchanges()  # u1/a1/u2/a2
     env.rewind()
     # Park on u1, then go live: this writes a fresh root and orphans a1/u2/a2.
@@ -137,14 +159,16 @@ def test_session_tree_shows_orphaned_branches(capsys):
     # The abandoned branch is no longer reachable from the env's write head...
     assert tail_messages(env) == [("user", "u3"), ("assistant", "echo: u3")]
 
-    # ...but the session still holds it, and labels it orphaned.
+    # ...but the session still holds it, and draws it in the same tree.
     env.session.print_tree()
     out = capsys.readouterr().out
     assert "u1" in out and "u2" in out  # the discarded branch is present
-    assert "(orphaned)" in out
+    assert "u3" in out
+    # one tree: no per-root headers, no section breaks between the branches
+    assert "===" not in out and "(orphaned)" not in out
+    assert not [ln for ln in out.splitlines() if not ln.strip()]
     # the write cursor is an empty row *after* the last node
     assert any(ln.startswith(">") and ln.endswith("*") for ln in out.splitlines())
-    assert "u3" in out
 
 
 def test_replay_of_kept_log_is_deterministic():

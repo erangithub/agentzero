@@ -87,9 +87,9 @@ class Session:
         environment: an environment can only reach its own live history and the
         forks cut from it, never the abandoned branches.
 
-        Rendered in the style of ``tree.md``: a non-last sibling opens a new
-        column with ``├──``, while the last sibling stays in its parent's column
-        with no connector. Oldest event first.
+        Rendered as a single tree, oldest event first: a non-last sibling opens a
+        new column with ``├──``, while the last sibling stays in its parent's
+        column with no connector.
         """
         with self._lock:
             nodes = list(self._nodes.values())
@@ -98,7 +98,8 @@ class Session:
             return
 
         # Build parent -> children so we can walk the DAG (each node's event
-        # links to the next event written after it, forming a forest of roots).
+        # links to the next event written after it). Walking up from any node
+        # reaches a root, and every root is drawn into the one tree.
         children: dict[str | None, list[EventNode]] = {}
         for node in nodes:
             key = node.parent.id if node.parent is not None else None
@@ -122,13 +123,8 @@ class Session:
                 if tail is not None:
                     after.add(tail.id)
 
-        roots = children.get(None, [])
-        for i, root in enumerate(roots):
-            live = _subtree_has_cursor(root, children, on_row | after)
-            header = f"root {i + 1}" + ("" if live else "  (orphaned)")
-            print(f"\n=== {header} ===")
-            for line in _tree_lines(root, children, on_row, after):
-                print(line)
+        for line in _tree_lines(children.get(None, []), children, on_row, after):
+            print(line)
 
     # --- JSON serialization (language-agnostic JSONL; DB persistence comes later) ---
 
@@ -259,19 +255,8 @@ def _register_llm(env, llm) -> None:
         env.register_llm_stream_fn(llm.stream)
 
 
-def _subtree_has_cursor(node, children, cursors) -> bool:
-    if node.id in cursors:
-        return True
-    return any(_subtree_has_cursor(kid, children, cursors) for kid in children.get(node.id, []))
-
-
-# Rows are (lane, label, is_split). A split row has no label; it just draws the
-# ``|\`` that opens the next lane.
-_Row = tuple[int, "str | None", bool]
-
-
-def _tree_lines(root, children, on_row, after) -> list[str]:
-    """Lay one tree out in the style of ``tree.md``, oldest event first.
+def _tree_lines(roots, children, on_row, after) -> list[str]:
+    """Lay the log out as one tree, oldest event first.
 
     A non-last sibling opens a new column and is drawn with ``├──``; the *last*
     sibling never opens a new column and gets no connector at all, so it lands
@@ -279,6 +264,13 @@ def _tree_lines(root, children, on_row, after) -> list[str]:
     children when it drew ``├──`` -- which is why linear runs and last-sibling
     subtrees both stay in the column they started in. There is no ``└──``: a
     branch that ends simply stops.
+
+    Roots are the top of the tree, so a log with a single root opens on a bare
+    ``*``. Rewinding to the start and writing orphans the old log, and a session
+    can then genuinely have more than one root; those are drawn as extra
+    top-level branches of the same tree rather than as separate ones. Their
+    ``parent`` is still ``None`` in the DAG -- they are only *drawn* side by
+    side, never re-parented.
 
     Every row carries a two-character left margin. ``>`` marks the row of the
     event an env will produce next; when an env has caught up with its own tail
@@ -299,7 +291,9 @@ def _tree_lines(root, children, on_row, after) -> list[str]:
         for i, kid in enumerate(kids):
             walk(kid, child_base, "" if i == last else "├──")
 
-    walk(root, "", "")
+    last = len(roots) - 1
+    for i, root in enumerate(roots):
+        walk(root, "", "" if i == last else "├──")
     return out
 
 
