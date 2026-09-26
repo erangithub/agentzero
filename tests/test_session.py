@@ -61,9 +61,10 @@ def test_loaded_root_replays_deterministically():
 
 def test_fork_is_reused_after_load_not_recreated():
     env = _make_env()
+    env.add_user_message("long conversation here...")
     original = env.fork()
     original.llm_complete(build_context(original.history(), system="Summarize."))
-    fork_point = original.origin_node.parent
+    fork_point = original.fork_point
     assert fork_point is not None
 
     loaded = Session.from_json(env.session.to_json())
@@ -71,7 +72,8 @@ def test_fork_is_reused_after_load_not_recreated():
     assert fork_point.id in loaded_root.forks
     reused = loaded_root.forks[fork_point.id][0]
 
-    assert reused.origin_node.id == original.origin_node.id
+    assert reused.id == original.id
+    assert reused.fork_point.id == original.fork_point.id
     assert loaded_root.fork() is reused
 
 

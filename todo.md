@@ -15,6 +15,30 @@
 - [x] **`@tool` decorator** — thin, Pydantic-backed schema inference (`create_model` → `model_json_schema()`) returning `Tool`, with `schema=`/`name=` overrides; decorated fns stay callable; verbatim `Tool` construction still supported for bring-your-own-schema users
 - [ ] **Language-agnostic log format** — lock the on-disk spec (JSON/JSONL) once persistence lands, so future TS/C++ consumers can read-and-continue
 
+## Log shape: env as a cursor, not a baked-in branch
+- [x] **Drop `branch_start` fork nodes** — make an `Environment` a *cursor* on a shared event DAG (like a git branch = a movable ref) instead of a branch baked into the history. An env = `{write_head, read_head, fork_point}`; `fork()` just places a new cursor at the current node and writes **no** node. A fork point's children become co-equal events (mainline is not structurally special), and branch content attaches directly to the shared node instead of one hop removed
+  - [x] Fork point points at a *real* event node (replaces `origin_node = branch_start`); replay still starts strictly after it, so `fork_history()` is unchanged
+  - [x] Root env has `fork_point is None`; `from_json` identifies roots as `origin is None` (replaces the `origin.parent is None` check)
+  - [x] Env records carry the parent env id, so `from_json` reconstructs parent→child directly instead of the `max(origin_node.depth)` chain-matching hack (`session.py:172-183`)
+  - [x] Env identity is its own uuid (`env.id`), since cursors are no longer identified by a unique branch node — siblings share a fork point
+  - [x] `to_json` walks each cursor to the DAG head and unions, so shared ancestors are stored once
+  - [x] `ControlEvent`/`ControlKind` deleted outright (they existed only for branch markers); the marker-skip in `_read` and control serialization return with the transaction item
+  - [x] Nullable `Sequence.to_node` / `prev_node` / `current_depth`, since the log's first node can now have no parent
+  - [x] Fixed the go-live sync in `_message_event`: it was guarded on `read_head.prev` being truthy, which only held because of the old `branch_start` sentinel — rolling back to the *first* node failed to orphan the tail
+  - [x] Fixed the same gap in `_call_event` / `_amessage_event`: all three primitives now call one shared `_anchor_write_head()` (move write head to the read position, clear the read head, drop the stop predicate), so a flow that goes live mid-replay then makes a nondet or async call resumes at the cursor instead of appending after the discarded tail. Covered by `test_nondet_call_going_live_anchors_at_read_head` and `test_async_message_going_live_anchors_at_read_head`
+
+## Transactions — atomic regions of the log
+- [ ] **Transaction markers** — `BEGIN`/`COMMIT` as recorded marker nodes (reuse the `ControlEvent`/`ControlKind` slot freed by dropping `branch_start`). Log-level atomicity: the run of events between BEGIN and COMMIT is one unit; aborting orphans the whole range via the existing rewind + go-live (orphan) machinery
+  - [ ] API: `with env.transaction():` context manager (commit on clean exit, abort+rollback on exception) plus explicit `env.begin()` / `env.commit()` / `env.abort()`; optional txn name/id on BEGIN
+  - [ ] Scope: **per-cursor** (a cursor's own writes). Each env tracks its open transaction and refuses a nested `BEGIN`
+  - [ ] Crash detection: a `BEGIN` with no matching `COMMIT` at the tail = an interrupted session; surface it on reload (auto-rollback or an explicit flag)
+  - [ ] Replay is free: markers are recorded events, so `begin()`/`commit()` re-read them during replay and the flow sees the same boundaries
+  - [ ] Introduce `MarkerEvent`/`MarkerKind` for these (replacing the now-deleted `ControlEvent`/`ControlKind`), plus the marker-skip in `_read` and control serialization in `session.py`
+  - [ ] Caveat: log-level atomicity only — does **not** undo external side effects already fired by tools/LLMs inside the transaction
+
+## Marker / checkpoint nodes (forward-looking)
+- [ ] **Checkpoint / cached-state markers** — "resume here from cached state" for long sessions (O(1) instead of replaying the flow) and to cache large derived state out-of-band. Honest caveat: replay already never re-calls the LLM, so the classic snapshot motivation is weak here; it earns its keep for *large/external* cached state, and unlike transactions it needs real new framework machinery (a `seek` replay entry point). Partly overlaps `nondet`, which already records small nondet results inline
+
 ## Replay timing & pacing (stashed — rebuild one item at a time)
 - [ ] **Record per-event timing** — stamp every `MessageEvent`/`CallEvent` at write time with a wall-clock `timestamp` and a measured `duration_ms` (survives the JSONL round-trip)
 - [ ] **`Sequence.iter_timed()`** — yield timed events with `delta_ms` (unfolded wall delta vs the previous timed event) and `gap_ms` (time consumed by neither event), skipping control/branch nodes

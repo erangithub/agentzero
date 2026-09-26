@@ -1,4 +1,6 @@
-from agentzero import Session, build_context
+import asyncio
+
+from agentzero import Message, Session, build_context
 from agentzero.environment import transient
 from agentzero.llms import EchoLLM
 
@@ -62,6 +64,64 @@ def test_go_back_discards_rolled_back_exchange():
 
     # Only the kept exchange survives — the apple exchange is discarded.
     assert messages(env) == [("user", "banana"), ("assistant", "echo: banana")]
+
+
+def _two_exchanges():
+    """A live env holding u1/a1/u2/a2."""
+    env = Session(continue_live=True).root
+    env.register_llm_fn(EchoLLM().complete)
+    env.add_user_message("u1")
+    env.llm_complete(build_context(env.history()))
+    env.add_user_message("u2")
+    env.llm_complete(build_context(env.history()))
+    return env
+
+
+def _rewind_parked_on_u2(env):
+    """Rewind and replay forward so the read head is parked on u2 (go-live point)."""
+    env.rewind()
+    env.replay_until(lambda n: n.is_message("user") and n.event.message.content == "u2")
+    env.add_user_message("u1")  # replays u1
+    env.llm_complete(build_context(env.history()))  # replays a1
+    assert not env.is_replay  # parked on u2, so the next write goes live here
+    return env
+
+
+def tail_messages(env):
+    """Tail-based: reflects the true write position regardless of read-head state."""
+    return [(m.role, m.content) for m in env.full_history().iter_messages()]
+
+
+def test_nondet_call_going_live_anchors_at_read_head():
+    """A nondeterministic write after going live must resume at the read head,
+    orphaning the discarded tail — not append after it."""
+    env = _two_exchanges()
+    env.register_nondet(lambda: {"v": 1}, name="tick")
+    _rewind_parked_on_u2(env)
+
+    assert env.tick() == {"v": 1}
+
+    # The tick node (a CallEvent) hangs off a1; u2/a2 are orphaned.
+    assert tail_messages(env) == [("user", "u1"), ("assistant", "echo: u1")]
+
+
+def test_async_message_going_live_anchors_at_read_head():
+    """Same anchoring for an async message write."""
+    env = _two_exchanges()
+    _rewind_parked_on_u2(env)
+
+    async def live_async(_context):
+        return Message(role="assistant", content="async-live")
+
+    env.register_llm_afn(live_async, name="llm_acomplete")
+    asyncio.run(env.llm_acomplete(build_context(env.history(), system="s")))
+
+    # u2/a2 are orphaned; the async message hangs off a1.
+    assert tail_messages(env) == [
+        ("user", "u1"),
+        ("assistant", "echo: u1"),
+        ("assistant", "async-live"),
+    ]
 
 
 def test_replay_of_kept_log_is_deterministic():

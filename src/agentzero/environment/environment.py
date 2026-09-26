@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import MethodType
@@ -9,7 +10,6 @@ from typing import Any, TypeVar
 
 from agentzero.eventlog import (
     CallEvent,
-    ControlEvent,
     Event,
     EventNode,
     Message,
@@ -40,7 +40,13 @@ def transient(value: Any):
 
 
 class Environment:
-    """A view over the shared session store: a read head + write head.
+    """A cursor over the shared session event log: a read head + write head.
+
+    An environment holds no branch marker of its own. It is positioned by
+    ``fork_point`` (the log node it branched from, ``None`` for the root) and
+    moves by advancing its two heads. ``fork()`` places another cursor at the
+    current write-head node without writing anything, so the log stays a single
+    shared DAG in which the trunk is not structurally special.
 
     Environments are never constructed directly by users. They are created by a
     ``Session`` (``session.root``), by ``Session.from_json``, or by another
@@ -51,19 +57,21 @@ class Environment:
         self,
         session: Session,
         continue_live: bool = False,
-        origin_node: EventNode | None = None,
+        fork_point: EventNode | None = None,
         registered_fns: dict[str, Callable] | None = None,
+        env_id: str | None = None,
+        parent_id: str | None = None,
     ):
         self.registered_fns: dict[str, Callable] = {}
         for name, fn in (registered_fns or {}).items():
             setattr(self, name, MethodType(fn, self))
             self.registered_fns[name] = fn
 
-        if origin_node is None:
-            origin_node = WriteHead.start().fork()
-        self.origin_node = origin_node
-        self.write_head = WriteHead(prev=origin_node)
-        self.forks: dict[str, list[Environment]] = {}
+        self.id = env_id or str(uuid.uuid4())
+        self.parent_id = parent_id
+        self.fork_point = fork_point
+        self.write_head = WriteHead(prev=fork_point)
+        self.forks: dict[str | None, list[Environment]] = {}
         self.session = session
         session.register(self)
 
@@ -92,50 +100,64 @@ class Environment:
     def _read(self) -> MessageEvent | CallEvent | None:
         assert self.is_replay
         self.child_index = 0
-        node = self.read_head.next
-        while node is not None:
-            if isinstance(node.event, ControlEvent):
-                self.read_head.step()
-                if not self.is_replay:
-                    return None
-                node = self.read_head.next
-                continue
-            self.read_head.step()
-            prev = self.read_head.prev
-            assert prev is not None
-            assert isinstance(prev.event, (MessageEvent, CallEvent))
-            return prev.event
-        return None
+        if self.read_head.next is None:
+            return None
+        self.read_head.step()
+        prev = self.read_head.prev
+        assert prev is not None
+        assert isinstance(prev.event, (MessageEvent, CallEvent))
+        return prev.event
+
+    def _anchor_write_head(self) -> None:
+        """Re-anchor the write head at the read head before a live write.
+
+        If the read head is positioned anywhere — including at the very start of
+        the log, where ``prev`` is None but ``next`` is set — move the write head
+        to the read position and clear the read head, so the node is appended
+        there and any remaining replay tail is orphaned. Then drop the replay
+        stop predicate, since we are now genuinely live.
+
+        Every primitive that appends a recorded event must call this first, so
+        that sync/async message writes and nondeterministic call writes all
+        resume at the same point and orphan the discarded tail consistently.
+        """
+        if self.read_head.prev is not None or self.read_head.next is not None:
+            self.write_head.prev = self.read_head.prev
+            self.read_head.prev = self.read_head.next = None
+        self.replay_stop_predicate = None
 
     @property
-    def prev_node(self) -> EventNode:
-        node = self.read_head.prev or self.write_head.prev
-        assert node is not None
-        return node
+    def prev_node(self) -> EventNode | None:
+        return self.read_head.prev or self.write_head.prev
 
     @property
     def current_depth(self):
-        return self.prev_node.depth + 1
+        node = self.prev_node
+        return (node.depth + 1) if node is not None else 0
 
     def history(self) -> Sequence:
         return Sequence(after_node=None, to_node=self.prev_node)
 
     def full_history(self) -> Sequence:
-        assert self.write_head.prev is not None
         return Sequence(after_node=None, to_node=self.write_head.prev)
 
     def fork_history(self) -> Sequence:
-        return Sequence(after_node=self.origin_node, to_node=self.prev_node)
+        return Sequence(after_node=self.fork_point, to_node=self.prev_node)
 
     def full_fork_history(self) -> Sequence:
-        assert self.write_head.prev is not None
-        return Sequence(after_node=self.origin_node, to_node=self.write_head.prev)
+        return Sequence(after_node=self.fork_point, to_node=self.write_head.prev)
 
     def fork(self) -> Environment:
-        forknode = self.prev_node
-        if forknode.id not in self.forks:
-            self.forks[forknode.id] = []
-        child_envs = self.forks[forknode.id]
+        """Place a new cursor on the shared log at the current write-head node.
+
+        No event node is written: the child simply starts appending to the same
+        node the parent is at, so the two cursors produce co-equal children of it.
+        Forking the same node again returns the next existing sibling
+        (deterministic reuse), creating one only when needed.
+        """
+        fork_point = self.write_head.prev
+        key = fork_point.id if fork_point is not None else None
+        child_envs = self.forks.setdefault(key, [])
         if self.child_index < len(child_envs):
             forked_env = child_envs[self.child_index]
             forked_env.rewind()
@@ -143,8 +165,9 @@ class Environment:
             forked_env = Environment(
                 self.session,
                 continue_live=self.continue_live,
-                origin_node=self.write_head.fork(),
+                fork_point=fork_point,
                 registered_fns=self.registered_fns,
+                parent_id=self.id,
             )
             child_envs.append(forked_env)
 
@@ -172,13 +195,11 @@ class Environment:
         if not isinstance(result, Message):
             raise RuntimeError(f"Expected Message, got {type(result)}")
 
-        # Sync write_head to read_head when going live with a real message
-        if self.read_head.prev:
-            self.write_head.prev = self.read_head.prev
-            self.read_head.prev = self.read_head.next = None
+        # Sync write_head to read_head when going live with a real message, so
+        # writes resume at the go-live node and the replayed tail is orphaned.
+        self._anchor_write_head()
 
         self._write(MessageEvent(message=result))
-        self.replay_stop_predicate = None
 
         return result
 
@@ -197,6 +218,7 @@ class Environment:
         result = await fn()
         if not isinstance(result, Message):
             raise RuntimeError(f"Expected Message, got {type(result)}")
+        self._anchor_write_head()
         self._write(MessageEvent(message=result))
         return result
 
@@ -215,6 +237,7 @@ class Environment:
         elif self.read_head.prev is not None and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = fn()
+        self._anchor_write_head()
         self._write(CallEvent(fn_name=fn_name, result=json.dumps(result)))
         return result
 

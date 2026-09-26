@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING
 
 from agentzero.eventlog import (
     CallEvent,
-    ControlEvent,
-    ControlKind,
     Event,
     EventNode,
     Message,
@@ -22,10 +20,12 @@ if TYPE_CHECKING:
 class Session:
     """Shared container for every ``Environment`` of a run.
 
-    Single source of truth for the parent->child topology (which an environment's
-    heads only capture implicitly): each environment is registered by its origin
-    (``branch_start``) node id. Registration is thread-safe; the rest of the
-    framework assumes at most one thread per ``Environment``.
+    Owns the single event DAG that all environments are cursors over, and the
+    parent->child cursor topology (which the log itself no longer records).
+    Each environment is registered by its own ``id``, since cursors are no
+    longer identified by a unique branch node — several may share a fork point.
+    Registration is thread-safe; the rest of the framework assumes at most one
+    thread per ``Environment``.
 
     A ``Session`` is the single way to create an ``Environment``: it owns a fresh
     root environment (``session.root``), and branches are created via ``fork()``.
@@ -53,11 +53,11 @@ class Session:
 
     def register(self, env: Environment) -> None:
         with self._lock:
-            self._envs[env.origin_node.id] = env
+            self._envs[env.id] = env
 
-    def __getitem__(self, origin_id: str) -> Environment:
+    def __getitem__(self, env_id: str) -> Environment:
         with self._lock:
-            return self._envs[origin_id]
+            return self._envs[env_id]
 
     def envs(self) -> list[Environment]:
         with self._lock:
@@ -72,15 +72,13 @@ class Session:
     def to_json(self) -> str:
         envs = self.envs()
 
+        # Walk each cursor's tail up to the head of the shared DAG. The union is
+        # the whole log; shared ancestors are collected once.
         nodes: dict[str, EventNode] = {}
         for env in envs:
             node = env.write_head.prev
-            assert node is not None
             while node is not None:
                 nodes[node.id] = node
-                if node is env.origin_node:
-                    break
-                assert node.parent is not None or node is env.origin_node
                 node = node.parent
 
         lines = [
@@ -88,7 +86,7 @@ class Session:
                 {
                     "typ": "header",
                     "version": 1,
-                    "root": self.root.origin_node.id if self.root is not None else None,
+                    "root": self.root.id if self.root is not None else None,
                 }
             )
         ]
@@ -96,13 +94,15 @@ class Session:
             lines.append(json.dumps(_node_record(node)))
         for env in envs:
             tail = env.write_head.prev
-            assert tail is not None
+            fork_point = env.fork_point
             lines.append(
                 json.dumps(
                     {
                         "typ": "env",
-                        "origin": env.origin_node.id,
-                        "tail": tail.id,
+                        "id": env.id,
+                        "fork_point": fork_point.id if fork_point is not None else None,
+                        "tail": tail.id if tail is not None else None,
+                        "parent": env.parent_id,
                     }
                 )
             )
@@ -148,20 +148,26 @@ class Session:
         session = cls(continue_live=continue_live, _make_root=False)
         envs: list[Environment] = []
         for record in env_records:
+            fork_point_id = record["fork_point"]
+            tail_id = record["tail"]
             env = Environment(
                 session,
-                origin_node=nodes[record["origin"]],
                 continue_live=continue_live,
+                fork_point=nodes[fork_point_id] if fork_point_id else None,
+                env_id=record["id"],
+                parent_id=record.get("parent"),
             )
-            env.write_head.prev = nodes[record["tail"]]
+            if tail_id:
+                env.write_head.prev = nodes[tail_id]
             env.rewind()
             envs.append(env)
 
-        roots = [env for env in envs if env.origin_node.parent is None]
         if header is not None and header.get("root") is not None:
-            roots = [env for env in envs if env.origin_node.id == header["root"]]
-        if roots:
-            session.root = roots[0]
+            session.root = session[header["root"]]
+        else:
+            roots = [env for env in envs if env.parent_id is None]
+            if roots:
+                session.root = roots[0]
 
         for env in envs:
             if llm is not None:
@@ -169,18 +175,13 @@ class Session:
             if input_fn is not None:
                 env.register_input_fn(input_fn)
 
-        chain_ids: dict[Environment, set[str]] = {
-            env: {node.id for node in _chain(env)} for env in envs
-        }
+        # Rebuild the cursor topology from the recorded parent links; the log
+        # itself carries no branch structure.
         for env in envs:
-            fork_point = env.origin_node.parent
-            if fork_point is None:
+            if env.parent_id is None:
                 continue
-            owner = max(
-                (candidate for candidate in envs if fork_point.id in chain_ids[candidate]),
-                key=lambda candidate: candidate.origin_node.depth,
-            )
-            owner.forks.setdefault(fork_point.id, []).append(env)
+            key = env.fork_point.id if env.fork_point is not None else None
+            session[env.parent_id].forks.setdefault(key, []).append(env)
 
         return session
 
@@ -191,19 +192,6 @@ def _register_llm(env, llm) -> None:
         env.register_llm_afn(llm.acomplete)
     if hasattr(llm, "stream"):
         env.register_llm_stream_fn(llm.stream)
-
-
-def _chain(env: Environment) -> list[EventNode]:
-    node = env.write_head.prev
-    assert node is not None
-    chain: list[EventNode] = []
-    while node is not None:
-        chain.append(node)
-        if node is env.origin_node:
-            break
-        assert node.parent is not None
-        node = node.parent
-    return chain
 
 
 def _node_record(node: EventNode) -> dict:
@@ -240,8 +228,6 @@ def _event_record(event: Event) -> dict:
             "ts": event.timestamp,
             "ms": event.duration_ms,
         }
-    if isinstance(event, ControlEvent):
-        return {"kind": "control", "control": event.control.value}
     raise TypeError(f"Cannot serialize event {type(event).__name__}")
 
 
@@ -267,6 +253,4 @@ def _event_from_record(record: dict) -> Event:
             timestamp=record["ts"],
             duration_ms=record["ms"],
         )
-    if kind == "control":
-        return ControlEvent(control=ControlKind(record["control"]))
     raise ValueError(f"Unknown event kind {kind!r}")

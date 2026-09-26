@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -24,16 +23,6 @@ class ToolCall:
     id: str
     name: str
     arguments: str
-
-
-class ControlKind(Enum):
-    branch_start = "branch_start"
-    branch_cancelled = "branch_cancelled"
-
-
-@dataclass(frozen=True)
-class ControlEvent:
-    control: ControlKind
 
 
 @dataclass(frozen=True)
@@ -58,7 +47,7 @@ class TransientEvent:
     value: str
 
 
-Event = MessageEvent | CallEvent | ControlEvent | TransientEvent
+Event = MessageEvent | CallEvent | TransientEvent
 
 
 @dataclass(frozen=True)
@@ -84,15 +73,14 @@ class EventNode:
 
 class Sequence:
     after_node: EventNode | None
-    to_node: EventNode
+    to_node: EventNode | None
 
-    def __init__(self, after_node: EventNode | None, to_node: EventNode):
+    def __init__(self, after_node: EventNode | None, to_node: EventNode | None):
         self.after_node = after_node
         self.to_node = to_node
-        assert self.to_node is not None
 
     def __bool__(self):
-        return self.after_node != self.to_node
+        return self.to_node is not None and self.after_node != self.to_node
 
     def iter_messages(self) -> Iterator[Message]:
         for node in self.iter_nodes():
@@ -119,20 +107,6 @@ class WriteHead:
         node_id = str(uuid.uuid4())
         depth = (self.prev.depth + 1) if self.prev else 0
         self.prev = EventNode(id=node_id, event=event, parent=self.prev, depth=depth)
-
-    def fork(self) -> EventNode:
-        node_id = str(uuid.uuid4())
-        depth = (self.prev.depth + 1) if self.prev else 0
-        return EventNode(
-            id=node_id,
-            event=ControlEvent(control=ControlKind.branch_start),
-            parent=self.prev,
-            depth=depth,
-        )
-
-    @staticmethod
-    def start() -> WriteHead:
-        return WriteHead()
 
 
 class ReadHead:

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from agentzero.eventlog import (
     CallEvent,
-    ControlEvent,
-    ControlKind,
     Delta,
     EventNode,
     Message,
@@ -22,8 +20,6 @@ __all__ = [
     "EventNode",
     "build_context",
     "ToolCall",
-    "ControlEvent",
-    "ControlKind",
     "CallEvent",
     "Message",
     "tool",
