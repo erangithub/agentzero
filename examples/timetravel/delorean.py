@@ -2,12 +2,6 @@ from agentzero import Session, build_context
 from agentzero.environment import transient
 from agentzero.llms import EchoLLM  # LMStudioLLM  # or OllamaLLM
 
-
-def prev_user_depth(env) -> int | None:
-    node = env.prev_node.find(lambda n: n.is_message("user"))
-    return node.depth if node else None
-
-
 # Set debug_input to prefill user inputs for debugging
 debug_input = []  # ["apple", "banana", "/b", "/b", "/n", "citrus"]
 
@@ -59,13 +53,31 @@ def main():
                 continue
 
             if command == "b":
-                target_depth = prev_user_depth(env)
-                if target_depth is None:
-                    print("No previous user input step")
+                current = env.prev_node
+                if current is None or current.depth == 0:
+                    print("Already at the start of the log")
+                    continue
+                # Stop just before the preceding user turn, so that turn gets
+                # replayed into the next prompt rather than skipped. `find`
+                # includes the current node, hence the depth test.
+                target = current.find(
+                    lambda n, c=current: n.depth < c.depth and n.is_message("user")
+                )
+                if target is None:
+                    print("Already at the start of the log")
                     continue
                 env.rewind()
-                env.replay_until(lambda n, d=target_depth: n.depth >= d)
-                print(f"Going back to ({target_depth})")
+                if target.depth == 0:
+                    # Every node satisfies "depth >= 0", so the replay would
+                    # stop immediately with the read head *before* the first
+                    # node -- and prev_node would then fall back to the live
+                    # write head at the end of the log. Step onto the first
+                    # node instead, so the cursor reads as depth 0.
+                    env.read_head.step()
+                    env.go_live()
+                else:
+                    env.replay_until(lambda n, d=target.depth: n.depth >= d)
+                print(f"Going back to ({target.depth})")
                 continue
 
             if command == "n":
