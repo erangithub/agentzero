@@ -61,6 +61,8 @@ class CallEvent:
     result: str
     timestamp: float | None = None
     duration_ms: float | None = None
+    # TBD: never populated. Nothing records a call's arguments, so replay can
+    # only check fn_name -- see mismatch() below and the todo.md entry.
     args: str | None = None
 
     def mismatch(self, expect: str | None) -> str | None:

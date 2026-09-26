@@ -307,6 +307,8 @@ class Environment:
             raise RuntimeError("Replay exhausted")
         result = fn()
         self._anchor_write_head()
+        # TBD: args is not recorded, so a replayed call can only be matched on
+        # fn_name. See CallEvent.args in eventlog.py.
         self._write(CallEvent(fn_name=fn_name, result=json.dumps(result)))
         return result
 

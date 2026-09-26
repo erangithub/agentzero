@@ -12,6 +12,7 @@
 - [ ] Persistence format must be language-agnostic (JSON/JSONL spec) since a future **C++ port** will need to read/write the same logs
 - [ ] **(future) C++ interop** — not a full parallel framework; language-agnostic log format + small native *consumer/continuation* libraries (C++, optionally TS) so other hosts can read-and-continue Python-written logs
 - [ ] **Token/cost accounting** — record usage metadata per LLM event; `examples/token_saving/` is currently empty
+- [ ] **Record `CallEvent.args`** — the field is in the schema but nothing populates it, so `CallEvent.mismatch()` can only compare `fn_name`: a call replayed with *different arguments* goes unnoticed and silently returns the old result. An LLM call is not a function of the log, so these args are part of the fold's recorded inputs — without them a "fold" that cannot be re-evaluated is a cached value wearing a fold's clothes. Needs capture at the call boundary (`register_nondet` receives `fn` as a closure, so the arguments are not reachable from the function object) plus serialization in `session.py`
 - [x] **`@tool` decorator** — thin, Pydantic-backed schema inference (`create_model` → `model_json_schema()`) returning `Tool`, with `schema=`/`name=` overrides; decorated fns stay callable; verbatim `Tool` construction still supported for bring-your-own-schema users
 - [ ] **Language-agnostic log format** — lock the on-disk spec (JSON/JSONL) once persistence lands, so future TS/C++ consumers can read-and-continue
 
