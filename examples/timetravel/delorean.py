@@ -67,26 +67,23 @@ def main():
                     print("Already at the start of the log")
                     continue
                 env.rewind()
-                if target.depth == 0:
-                    # Every node satisfies "depth >= 0", so the replay would
-                    # stop immediately with the read head *before* the first
-                    # node -- and prev_node would then fall back to the live
-                    # write head at the end of the log. Step onto the first
-                    # node instead, so the cursor reads as depth 0.
-                    env.read_head.step()
-                    env.go_live()
-                else:
-                    env.replay_until(lambda n, d=target.depth: n.depth >= d)
+                env.replay_until(lambda n, d=target.depth: n.depth >= d)
                 print(f"Going back to ({target.depth})")
                 continue
 
             if command == "n":
+                if not env.is_replay:
+                    print("No more steps")
+                    continue
                 current_depth = env.current_depth
                 env.replay_until(lambda n, d=current_depth: n.is_message("user") and n.depth > d)
                 if not env.is_replay:
-                    print("No more steps")
-                else:
                     print("Going to next user input")
+                else:
+                    # Nothing between here and the end, so release the replay
+                    # instead of replaying the rest of the log back at the user.
+                    env.go_live()
+                    print("No more steps")
                 continue
 
             print(f"Unknown command: /{command}")

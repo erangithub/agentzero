@@ -129,9 +129,26 @@ class Environment:
             self.read_head.prev = self.read_head.next = None
         self.replay_stop_predicate = None
 
+    def _read_head_positioned(self) -> bool:
+        """True once the read head has a place to sit in the log.
+
+        A rewound env starts *before* the first node, where ``prev`` is None but
+        ``next`` is not -- that is a real position, not an absent one. A live
+        env never advances its read head at all, so both are None and the write
+        head is the position.
+        """
+        return self.read_head.prev is not None or self.read_head.next is not None
+
     @property
     def prev_node(self) -> EventNode | None:
-        return self.read_head.prev or self.write_head.prev
+        """The node just before this env's cursor.
+
+        None means the cursor sits at the very start of the log -- or that the
+        env has no history at all, which is the same thing.
+        """
+        if self._read_head_positioned():
+            return self.read_head.prev
+        return self.write_head.prev
 
     @property
     def current_depth(self):
@@ -190,7 +207,7 @@ class Environment:
             if not isinstance(event, MessageEvent):
                 raise RuntimeError(f"Expected MessageEvent, got {type(event)}")
             return event.message
-        elif self.read_head.prev is not None and not self.continue_live:
+        elif self._read_head_positioned() and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = fn()
         if isinstance(result, TransientEvent):
@@ -216,7 +233,7 @@ class Environment:
                 return event.message
             if not self.continue_live:
                 raise RuntimeError("Replay exhausted")
-        elif self.read_head.prev is not None and not self.continue_live:
+        elif self._read_head_positioned() and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = await fn()
         if not isinstance(result, Message):
@@ -237,7 +254,7 @@ class Environment:
                 return json.loads(event.result)
             if not self.continue_live:
                 raise RuntimeError("Replay exhausted")
-        elif self.read_head.prev is not None and not self.continue_live:
+        elif self._read_head_positioned() and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = fn()
         self._anchor_write_head()

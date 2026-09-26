@@ -142,7 +142,7 @@ def test_session_tree_shows_orphaned_branches(capsys):
     out = capsys.readouterr().out
     assert "u1" in out and "u2" in out  # the discarded branch is present
     assert "(orphaned)" in out
-    assert "> " in out  # the live cursor is marked in the left margin
+    assert "\n>\n" in out  # the write cursor sits *after* the last node
     assert "u3" in out
 
 

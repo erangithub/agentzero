@@ -106,13 +106,14 @@ class Session:
         for kids in children.values():
             kids.sort(key=lambda n: (n.depth, n.id))
 
-        # Mark the nodes that hold a live cursor. Read and write heads are the
-        # same position once an env goes live, so one marker per node is enough.
+        # Mark where each env's write head sits. A write head points *after* the
+        # last node it wrote, not on it, so these are the nodes a cursor follows
+        # rather than nodes a cursor sits on.
         cursors: set[str] = set()
         for env in self.envs():
-            node = env.prev_node
-            if node is not None:
-                cursors.add(node.id)
+            tail = env.write_head.prev
+            if tail is not None:
+                cursors.add(tail.id)
 
         roots = children.get(None, [])
         for i, root in enumerate(roots):
@@ -272,20 +273,24 @@ def _tree_lines(root, children, cursors) -> list[str]:
     subtrees both stay in the column they started in. There is no ``└──``: a
     branch that ends simply stops.
 
-    Every row carries a two-character left margin; ``>`` in the first column
-    marks a row that holds a live cursor.
+    Every row carries a one-character left margin; ``>`` marks a live write
+    head. Since a write head points *after* the node it last wrote, a cursor on
+    a leaf gets a bare ``>`` line below it instead of a marked row.
     """
     out: list[str] = []
 
     def walk(node, base: str, connector: str) -> None:
-        margin = "> " if node.id in cursors else "  "
-        out.append(f"{margin}{base}{connector}* {_node_label(node)}")
+        kids = children.get(node.id, [])
+        marked = node.id in cursors
+        margin = ">" if marked and kids else " "
+        out.append(f"{margin} {base}{connector}* {_node_label(node)}")
 
         child_base = base + ("│  " if connector == "├──" else "")
-        kids = children.get(node.id, [])
         last = len(kids) - 1
         for i, kid in enumerate(kids):
             walk(kid, child_base, "" if i == last else "├──")
+        if marked and not kids:
+            out.append(">")
 
     walk(root, "", "")
     return out
