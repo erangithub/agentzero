@@ -275,7 +275,8 @@ def _tree_lines(root, children, cursors) -> list[str]:
 
     Every row carries a one-character left margin; ``>`` marks a live write
     head. Since a write head points *after* the node it last wrote, a cursor on
-    a leaf gets a bare ``>`` line below it instead of a marked row.
+    a leaf is drawn as a following row with an empty label -- the slot the next
+    event will occupy.
     """
     out: list[str] = []
 
@@ -290,7 +291,7 @@ def _tree_lines(root, children, cursors) -> list[str]:
         for i, kid in enumerate(kids):
             walk(kid, child_base, "" if i == last else "├──")
         if marked and not kids:
-            out.append(">")
+            out.append(f"> {child_base}*")
 
     walk(root, "", "")
     return out
