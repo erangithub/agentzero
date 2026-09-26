@@ -151,6 +151,14 @@ class Environment:
         return self.write_head.prev
 
     @property
+    def next_node(self) -> EventNode | None:
+        """The node the cursor will read next, or None if not positioned.
+
+        Together with ``prev_node`` this pins the cursor *between* two nodes.
+        """
+        return self.read_head.next
+
+    @property
     def current_depth(self):
         node = self.prev_node
         return (node.depth + 1) if node is not None else 0

@@ -106,21 +106,26 @@ class Session:
         for kids in children.values():
             kids.sort(key=lambda n: (n.depth, n.id))
 
-        # Mark where each env's write head sits. A write head points *after* the
-        # last node it wrote, not on it, so these are the nodes a cursor follows
-        # rather than nodes a cursor sits on.
-        cursors: set[str] = set()
+        # Mark where each env's cursor actually is. A cursor sits *between* two
+        # nodes: normally just after the node it last wrote, but a rewound env
+        # sits where it stopped replaying, and one rewound to the very start has
+        # no node behind it at all -- its cursor belongs just above the root it
+        # will read from.
+        after: set[str] = set()
+        before: set[str] = set()
         for env in self.envs():
-            tail = env.write_head.prev
-            if tail is not None:
-                cursors.add(tail.id)
+            pos = env.prev_node
+            if pos is not None:
+                after.add(pos.id)
+            elif env.next_node is not None:
+                before.add(_root_of(env.next_node).id)
 
         roots = children.get(None, [])
         for i, root in enumerate(roots):
-            live = _subtree_has_cursor(root, children, cursors)
+            live = _subtree_has_cursor(root, children, after | before)
             header = f"root {i + 1}" + ("" if live else "  (orphaned)")
             print(f"\n=== {header} ===")
-            for line in _tree_lines(root, children, cursors):
+            for line in _tree_lines(root, children, after, before):
                 print(line)
 
     # --- JSON serialization (language-agnostic JSONL; DB persistence comes later) ---
@@ -252,6 +257,12 @@ def _register_llm(env, llm) -> None:
         env.register_llm_stream_fn(llm.stream)
 
 
+def _root_of(node: EventNode) -> EventNode:
+    while node.parent is not None:
+        node = node.parent
+    return node
+
+
 def _subtree_has_cursor(node, children, cursors) -> bool:
     if node.id in cursors:
         return True
@@ -263,7 +274,7 @@ def _subtree_has_cursor(node, children, cursors) -> bool:
 _Row = tuple[int, "str | None", bool]
 
 
-def _tree_lines(root, children, cursors) -> list[str]:
+def _tree_lines(root, children, after, before) -> list[str]:
     """Lay one tree out in the style of ``tree.md``, oldest event first.
 
     A non-last sibling opens a new column and is drawn with ``├──``; the *last*
@@ -273,25 +284,25 @@ def _tree_lines(root, children, cursors) -> list[str]:
     subtrees both stay in the column they started in. There is no ``└──``: a
     branch that ends simply stops.
 
-    Every row carries a one-character left margin; ``>`` marks a live write
-    head. Since a write head points *after* the node it last wrote, a cursor on
-    a leaf is drawn as a following row with an empty label -- the slot the next
-    event will occupy.
+    Every row carries a two-character left margin; ``>`` marks a live cursor.
+    A cursor sits *between* nodes -- just after the node its env last wrote or
+    replayed -- so it is always drawn as its own row with an empty label, the
+    slot the next event will occupy.
     """
     out: list[str] = []
+    if root.id in before:
+        out.append("> *")
 
     def walk(node, base: str, connector: str) -> None:
         kids = children.get(node.id, [])
-        marked = node.id in cursors
-        margin = ">" if marked and kids else " "
-        out.append(f"{margin} {base}{connector}* {_node_label(node)}")
+        out.append(f"  {base}{connector}* {_node_label(node)}")
 
         child_base = base + ("│  " if connector == "├──" else "")
+        if node.id in after:
+            out.append(f"> {child_base}*")
         last = len(kids) - 1
         for i, kid in enumerate(kids):
             walk(kid, child_base, "" if i == last else "├──")
-        if marked and not kids:
-            out.append(f"> {child_base}*")
 
     walk(root, "", "")
     return out
