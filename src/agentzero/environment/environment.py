@@ -23,6 +23,9 @@ from agentzero.eventlog import (
 from agentzero.session import Session
 
 T = TypeVar("T")
+# TransientEvent is in the Event union but is never recorded, so it can never
+# come back out of a replay.
+_E = TypeVar("_E", bound=MessageEvent | CallEvent)
 
 
 @dataclass
@@ -204,6 +207,47 @@ class Environment:
 
     # --- core invoke primitives ---
 
+    def _check_replayed(
+        self, event: Event, expect, kind: type[_E]
+    ) -> _E:
+        """Validate a recorded event against the call that replay intercepted.
+
+        Two failures, both fatal, and they mean different things. The log
+        holding the wrong kind of event means the replay is misaligned with the
+        code driving it. The log holding the right kind but a different call
+        means the caller has gone off-script: it rewound, never called
+        ``go_live``, and is trying to write into a replay. The event itself
+        decides what counts as a disagreement and words it, so this stays free
+        of event-kind knowledge -- a new kind only adds its own ``mismatch``.
+
+        Returns the event narrowed to ``kind``, so callers keep attribute access.
+        """
+        if not isinstance(event, kind):
+            raise RuntimeError(f"Expected {kind.__name__}, got {type(event).__name__}")
+        reason = event.mismatch(expect)
+        if reason is not None:
+            raise RuntimeError(
+                f"Not live: this env is replaying -- {reason}. Nothing was written. "
+                f"Call go_live() to branch from here, or let the replay run."
+            )
+        return event
+
+    def _replayed(self, expect, kind: type[_E]) -> _E:
+        """Validate the event the next replayed call will serve, then consume it.
+
+        Validation happens before the read head steps. If it did not, a
+        mismatched call would consume the event on its way to raising, leaving
+        the replay position moved and the *next* call going live by accident --
+        so the error would have written to the log after promising it wrote
+        nothing, and the caller could not recover by trying the right call.
+        """
+        node = self.read_head.next
+        assert node is not None, "is_replay implies a pending node"
+        event = self._check_replayed(node.event, expect, kind)
+        read = self._read()
+        assert read is event, "the event consumed is the one just validated"
+        return event
+
     def _message_event(self, fn: Callable[[], Message], expect: Message | None = None) -> Message:
         """Invoke a function that produces a Message. Writes a MessageEvent.
 
@@ -213,28 +257,9 @@ class Environment:
         built it up front. Replay never calls ``fn`` -- that is the whole point,
         since ``fn`` is usually the side-effecting work -- so ``expect`` is what
         lets us tell a faithful replay from a caller that has gone off-script.
-        A caller that rewound, never called ``go_live``, and then tries to add
-        something new is not replaying, it is writing into a replay; if the
-        message it holds disagrees with the log we say so instead of quietly
-        dropping it on the floor.
         """
         if self.is_replay:
-            event = self._read()
-            assert event is not None
-            if not isinstance(event, MessageEvent):
-                raise RuntimeError(f"Expected MessageEvent, got {type(event)}")
-            recorded = event.message
-            if expect is not None and (expect.role, expect.content) != (
-                recorded.role,
-                recorded.content,
-            ):
-                raise RuntimeError(
-                    f"Not live: this env is replaying, so the next recorded message is "
-                    f"{recorded.role}: {recorded.content!r}, but add_message was given "
-                    f"{expect.role}: {expect.content!r}. Nothing was written. Call go_live() "
-                    f"to branch from here, or let the replay run."
-                )
-            return recorded
+            return self._replayed(expect, MessageEvent).message
         elif self._read_head_positioned() and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = fn()
@@ -252,13 +277,14 @@ class Environment:
         return result
 
     async def _amessage_event(self, fn):
-        """Invoke an async function that produces a Message. Writes a MessageEvent."""
+        """Invoke an async function that produces a Message. Writes a MessageEvent.
+
+        No ``expect`` here: every current caller builds its message inside the
+        closure, so the intent does not exist until the work has run.
+        """
         if self.is_replay:
-            event = self._read()
-            if event is not None:
-                if not isinstance(event, MessageEvent):
-                    raise RuntimeError(f"Expected MessageEvent, got {type(event)}")
-                return event.message
+            if self.read_head.next is not None:
+                return self._replayed(None, MessageEvent).message
             if not self.continue_live:
                 raise RuntimeError("Replay exhausted")
         elif self._read_head_positioned() and not self.continue_live:
@@ -273,13 +299,8 @@ class Environment:
     def _call_event(self, fn_name: str, fn: Callable[[], T]) -> T:
         """Invoke a non-deterministic function. Writes a CallEvent."""
         if self.is_replay:
-            event = self._read()
-            if event is not None:
-                if not isinstance(event, CallEvent):
-                    raise RuntimeError(f"Expected CallEvent, got {type(event)}")
-                if event.fn_name != fn_name:
-                    raise RuntimeError(f"Expected {fn_name}, got {event.fn_name}")
-                return json.loads(event.result)
+            if self.read_head.next is not None:
+                return json.loads(self._replayed(fn_name, CallEvent).result)
             if not self.continue_live:
                 raise RuntimeError("Replay exhausted")
         elif self._read_head_positioned() and not self.continue_live:

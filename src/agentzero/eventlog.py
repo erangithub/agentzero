@@ -31,6 +31,29 @@ class MessageEvent:
     timestamp: float | None = None
     duration_ms: float | None = None
 
+    def mismatch(self, expect: Message | None) -> str | None:
+        """Describe how this recorded event differs from what the caller meant.
+
+        ``expect`` is whatever the caller already holds at the moment replay
+        intercepts the call. For a message that is the Message itself, built
+        before the event runs. ``None`` means the caller could not state its
+        intent -- the value only exists once the work has run, as with an LLM
+        call or a prompt -- so there is nothing to disagree with and the
+        recorded event stands.
+
+        Returning the reason rather than a bool keeps the wording next to the
+        comparison that knows how to describe both sides, so the caller of this
+        needs no knowledge of event kinds at all.
+        """
+        if expect is None:
+            return None
+        if (expect.role, expect.content) != (self.message.role, self.message.content):
+            return (
+                f"the next recorded message is {self.message.role}: "
+                f"{self.message.content!r}, but {expect.role}: {expect.content!r} was given"
+            )
+        return None
+
 
 @dataclass(frozen=True)
 class CallEvent:
@@ -39,6 +62,20 @@ class CallEvent:
     timestamp: float | None = None
     duration_ms: float | None = None
     args: str | None = None
+
+    def mismatch(self, expect: str | None) -> str | None:
+        """Describe how this recorded call differs from the call being replayed.
+
+        ``expect`` is the function name, which the caller always knows before
+        the call runs. This can only compare the name: ``args`` is part of the
+        schema but nothing records it yet, so a call replayed with different
+        arguments is indistinguishable from a faithful one.
+        """
+        if expect is None:
+            return None
+        if self.fn_name != expect:
+            return f"the next recorded call is {self.fn_name}, but {expect} was called"
+        return None
 
 
 # This event is not recorded

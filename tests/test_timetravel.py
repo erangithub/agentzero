@@ -264,6 +264,26 @@ def test_go_live_allows_writing_after_a_rewind():
     assert len(env.session._nodes) == before + 1
 
 
+def test_calling_a_different_function_during_replay_raises():
+    """The same guard covers CallEvent: a rewound env replaying must be driven
+    by the same calls, so a different fn_name means the caller went off-script.
+    This is the check that predates the message one, now sharing its mechanism."""
+    env = Session(continue_live=True).root
+    env.register_nondet(lambda: {"v": 1}, name="tick")
+    env.register_nondet(lambda: {"v": 2}, name="tock")
+    env.tick()
+    before = len(env.session._nodes)
+    env.rewind()
+
+    with pytest.raises(RuntimeError, match="Not live"):
+        env.tock()
+    assert len(env.session._nodes) == before
+
+    # the faithful call is still served out of the log
+    assert env.tick() == {"v": 1}
+    assert len(env.session._nodes) == before
+
+
 def test_replay_of_kept_log_is_deterministic():
     env = Session(continue_live=True).root
     env.register_llm_fn(EchoLLM().complete)
