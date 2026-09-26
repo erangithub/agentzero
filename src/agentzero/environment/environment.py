@@ -204,17 +204,37 @@ class Environment:
 
     # --- core invoke primitives ---
 
-    def _message_event(self, fn: Callable[[], Message]) -> Message:
+    def _message_event(self, fn: Callable[[], Message], expect: Message | None = None) -> Message:
         """Invoke a function that produces a Message. Writes a MessageEvent.
 
         If the function returns TransientEvent, it's returned without recording.
+
+        ``expect`` is the message the caller means to append, when the caller
+        built it up front. Replay never calls ``fn`` -- that is the whole point,
+        since ``fn`` is usually the side-effecting work -- so ``expect`` is what
+        lets us tell a faithful replay from a caller that has gone off-script.
+        A caller that rewound, never called ``go_live``, and then tries to add
+        something new is not replaying, it is writing into a replay; if the
+        message it holds disagrees with the log we say so instead of quietly
+        dropping it on the floor.
         """
         if self.is_replay:
             event = self._read()
             assert event is not None
             if not isinstance(event, MessageEvent):
                 raise RuntimeError(f"Expected MessageEvent, got {type(event)}")
-            return event.message
+            recorded = event.message
+            if expect is not None and (expect.role, expect.content) != (
+                recorded.role,
+                recorded.content,
+            ):
+                raise RuntimeError(
+                    f"Not live: this env is replaying, so the next recorded message is "
+                    f"{recorded.role}: {recorded.content!r}, but add_message was given "
+                    f"{expect.role}: {expect.content!r}. Nothing was written. Call go_live() "
+                    f"to branch from here, or let the replay run."
+                )
+            return recorded
         elif self._read_head_positioned() and not self.continue_live:
             raise RuntimeError("Replay exhausted")
         result = fn()
@@ -282,7 +302,7 @@ class Environment:
 
     def add_message(self, role: str, content: str | None = None, **kwargs) -> Message:
         msg = Message(role=role, content=content, **kwargs)
-        return self._message_event(fn=lambda: msg)
+        return self._message_event(fn=lambda: msg, expect=msg)
 
     def add_user_message(self, text: str) -> str | None:
         return self.add_message(role="user", content=text).content

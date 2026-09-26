@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from agentzero import Message, Session, build_context
 from agentzero.environment import transient
 from agentzero.llms import EchoLLM
@@ -210,6 +212,56 @@ def test_session_tree_shows_orphaned_branches(capsys):
     assert not [ln for ln in out.splitlines() if not ln.strip()]
     # the write cursor is an empty row *after* the last node
     assert any(ln.startswith(">") and ln.endswith("*") for ln in out.splitlines())
+
+
+def _rewound_two_exchanges():
+    env = Session(llm=EchoLLM(), continue_live=True).root
+    for text in ("a", "b"):
+        env.add_user_message(text)
+        env.llm_complete(build_context(env.history()))
+    env.rewind()
+    # armed but not yet reached: the head still sits on the first node
+    env.replay_until(lambda n: n.depth >= 2)
+    return env
+
+
+def test_writing_new_content_during_replay_raises():
+    """A rewound env that never called go_live() is replaying, not live. If the
+    caller hands it a message that disagrees with the log, it is trying to write
+    into a replay -- say so rather than dropping the text and returning the old
+    one, which is what used to happen."""
+    env = _rewound_two_exchanges()
+    before = len(env.session._nodes)
+    kept = tail_messages(env)
+
+    with pytest.raises(RuntimeError, match="Not live"):
+        env.add_user_message("x")
+
+    # nothing written, and the log is untouched
+    assert len(env.session._nodes) == before
+    assert tail_messages(env) == kept
+
+
+def test_replaying_the_same_message_still_serves_from_history():
+    """The check only fires on disagreement: a faithful replay of the same
+    message is still served out of the log without writing."""
+    env = _rewound_two_exchanges()
+    before = len(env.session._nodes)
+
+    assert env.add_user_message("a") == "a"
+
+    assert len(env.session._nodes) == before
+
+
+def test_go_live_allows_writing_after_a_rewind():
+    """go_live() is the explicit way out of a replay, and then writes land."""
+    env = _rewound_two_exchanges()
+    before = len(env.session._nodes)
+    env.go_live()
+
+    assert env.add_user_message("x") == "x"
+
+    assert len(env.session._nodes) == before + 1
 
 
 def test_replay_of_kept_log_is_deterministic():
