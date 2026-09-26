@@ -1,3 +1,5 @@
+import argparse
+
 from agentzero import Sequence, Session, build_context
 from agentzero.environment import transient
 from agentzero.llms import EchoLLM  # LMStudioLLM  # or OllamaLLM
@@ -6,23 +8,59 @@ from agentzero.llms import EchoLLM  # LMStudioLLM  # or OllamaLLM
 debug_input = []  # ["apple", "banana", "/b", "/b", "/n", "citrus"]
 
 
+def as_input(raw: str):
+    """Slash commands stay out of the log; everything else is a message."""
+    return transient(raw) if raw.startswith("/") else raw
+
+
 def get_input(depth):
-    global debug_input
     if debug_input:
-        user_input = debug_input.pop(0)
+        return as_input(debug_input.pop(0))
+    return as_input(input(f"{depth} > ").strip())
+
+
+class ScriptedInput:
+    """Feeds a fixed list of inputs so a run is reproducible.
+
+    Raises EOFError once the script runs out, so the REPL exits instead of
+    blocking on stdin.
+    """
+
+    def __init__(self, lines: list[str]):
+        self.lines = list(lines)
+
+    def __call__(self, depth: int):
+        if not self.lines:
+            raise EOFError
+        return as_input(self.lines.pop(0))
+
+
+def read_script(path: str) -> list[str]:
+    with open(path) as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def fresh_session(input_fn=get_input):
+    return Session(llm=EchoLLM(), input_fn=input_fn, continue_live=True)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Chat with your LLM, optionally driven by a script of inputs."
+    )
+    parser.add_argument(
+        "script",
+        nargs="?",
+        help="file of inputs to replay, one per line; '/...' lines are commands",
+    )
+    args = parser.parse_args(argv)
+
+    if args.script:
+        input_fn = ScriptedInput(read_script(args.script))
     else:
-        user_input = input(f"{depth} > ").strip()
-    if user_input.startswith("/"):
-        return transient(user_input)
-    return user_input
+        input_fn = get_input
 
-
-def fresh_session():
-    return Session(llm=EchoLLM(), input_fn=get_input, continue_live=True)
-
-
-def main():
-    session = fresh_session()
+    session = fresh_session(input_fn)
     env = session.root
 
     print("Chat with your LLM. Commands:")
@@ -34,7 +72,11 @@ def main():
     print()
 
     while True:
-        user_input = env.input(env.current_depth)
+        try:
+            user_input = env.input(env.current_depth)
+        except EOFError:
+            print()
+            break
 
         if user_input.startswith("/"):
             command = user_input[1:]
@@ -48,7 +90,7 @@ def main():
 
             if command == "reset":
                 print("Starting a new session")
-                session = fresh_session()
+                session = fresh_session(input_fn)
                 env = session.root
                 continue
 
